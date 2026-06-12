@@ -121,8 +121,11 @@ def test_testcase_capture_on_commit_callbacks(local_stubs, stubstestproj_context
     generated = testcases_stubs.read_text()
 
     assert "from contextlib import AbstractContextManager" in generated
+    assert "from django.forms.forms import BaseForm" in generated
     assert "def captureOnCommitCallbacks(" in generated
     assert "AbstractContextManager[list[Callable[[], None]]]" in generated
+    assert "form: BaseForm" in generated
+    assert "response: HttpResponse,\n        form: str," not in generated
 
 
 def test_testcase_codemods_are_cumulative(local_stubs, stubstestproj_context):
