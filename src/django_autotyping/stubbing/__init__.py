@@ -30,8 +30,8 @@ def run_codemods(
                 filename=stub_file, scratch={"django_context": django_context, "stubs_settings": stubs_settings}
             )
             transformer = codemod(context)
-            source_file = django_stubs_dir / stub_file
             target_file = stubs_settings.LOCAL_STUBS_DIR / "django-stubs" / stub_file
+            source_file = target_file if target_file.exists() else django_stubs_dir / stub_file
 
             input_code = source_file.read_text(encoding="utf-8")
             input_module = cst.parse_module(input_code)
