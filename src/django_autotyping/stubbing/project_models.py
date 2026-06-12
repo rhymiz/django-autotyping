@@ -4,6 +4,7 @@ import ast
 import importlib
 import inspect
 from collections import defaultdict
+from dataclasses import dataclass
 from pathlib import Path
 from types import ModuleType
 
@@ -57,6 +58,7 @@ def create_project_model_stubs(
     _augment_external_model_stubs(django_context, stubs_settings, source_root)
     _augment_model_base_dynamic_attrs(django_context, stubs_settings)
     _augment_related_field_string_overloads(django_context, stubs_settings)
+    _augment_generic_view_object_attrs(django_context, stubs_settings, source_root)
 
 
 MODEL_DYNAMIC_ATTRS_START = "    # django-autotyping project model attrs start"
@@ -65,6 +67,15 @@ MODEL_MANAGER_ATTRS_START = "    # django-autotyping project model managers star
 MODEL_MANAGER_ATTRS_END = "    # django-autotyping project model managers end"
 RELATED_FIELD_STRING_OVERLOADS_START = "    # django-autotyping project string model overloads start"
 RELATED_FIELD_STRING_OVERLOADS_END = "    # django-autotyping project string model overloads end"
+GENERIC_VIEW_OBJECT_ATTRS_START = "    # django-autotyping project generic view object attrs start"
+GENERIC_VIEW_OBJECT_ATTRS_END = "    # django-autotyping project generic view object attrs end"
+
+
+@dataclass(frozen=True)
+class GenericViewObjectAttr:
+    module_name: str
+    class_name: str
+    model: ModelType
 
 
 def _group_project_models(
@@ -273,11 +284,60 @@ def _augment_related_field_string_overloads(
     target_path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
 
 
+def _augment_generic_view_object_attrs(
+    django_context: DjangoStubbingContext,
+    stubs_settings: StubsGenerationSettings,
+    source_root: Path,
+) -> None:
+    local_stubs_dir = stubs_settings.LOCAL_STUBS_DIR
+    if local_stubs_dir is None:
+        return
+
+    target_path = local_stubs_dir / "django-stubs" / "views" / "generic" / "detail.pyi"
+    if not target_path.exists():
+        return
+
+    view_attrs = _collect_generic_view_object_attrs(django_context, source_root)
+    if not view_attrs:
+        return
+
+    lines = _remove_generated_generic_view_object_attrs(target_path.read_text(encoding="utf-8").splitlines())
+    lines = [line for line in lines if not line.startswith("    object: ")]
+    lines = _inject_imports(
+        lines,
+        [
+            *_model_imports_for_models(django_context, [view_attr.model for view_attr in view_attrs]),
+            *_generic_view_imports(view_attrs),
+        ],
+    )
+    lines = _ensure_typing_imports(lines, ["Literal", "overload"])
+    insert_at = _class_body_insert_index(lines, "SingleObjectMixin")
+    lines[insert_at:insert_at] = _render_generic_view_object_attr_overloads(django_context, view_attrs)
+    target_path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+
+
 def _model_imports(django_context: DjangoStubbingContext) -> list[str]:
     imports: list[str] = []
     for item in django_context.model_imports:
         imported = item.obj_name if item.alias is None else f"{item.obj_name} as {item.alias}"
         imports.append(f"from {item.module_name} import {imported}")
+    return imports
+
+
+def _model_imports_for_models(django_context: DjangoStubbingContext, models: list[ModelType]) -> list[str]:
+    imports: list[str] = []
+    seen: set[ModelType] = set()
+    for model in models:
+        if model in seen:
+            continue
+        seen.add(model)
+        module = model._meta.app_config.models_module or inspect.getmodule(model)
+        if module is None:
+            continue
+        imported = model.__name__
+        if django_context.is_duplicate(model):
+            imported = f"{model.__name__} as {django_context.get_model_name(model)}"
+        imports.append(f"from {module.__name__} import {imported}")
     return imports
 
 
@@ -291,6 +351,192 @@ def _model_string_refs(django_context: DjangoStubbingContext) -> dict[str, str]:
         for label in labels:
             refs[label] = model_name
     return refs
+
+
+SINGLE_OBJECT_VIEW_BASES = {
+    "BaseDeleteView",
+    "BaseDetailView",
+    "BaseUpdateView",
+    "DeleteView",
+    "DetailView",
+    "UpdateView",
+}
+
+
+def _collect_generic_view_object_attrs(
+    django_context: DjangoStubbingContext,
+    source_root: Path,
+) -> list[GenericViewObjectAttr]:
+    model_by_import = _model_by_import(django_context)
+    model_by_string_ref = _model_by_string_ref(django_context)
+    view_attrs: list[GenericViewObjectAttr] = []
+
+    for source_file in source_root.rglob("*.py"):
+        if _skip_project_scan_path(source_file, source_root):
+            continue
+        module_name = _module_name_from_source(source_root, source_file)
+        if module_name is None:
+            continue
+        try:
+            tree = ast.parse(source_file.read_text(encoding="utf-8"))
+        except SyntaxError:
+            continue
+
+        imported_models, imported_modules = _module_model_imports(tree, module_name, model_by_import)
+        for node in tree.body:
+            if not isinstance(node, ast.ClassDef) or not _has_single_object_view_base(node):
+                continue
+            model = _class_model_assignment(
+                node,
+                imported_models,
+                imported_modules,
+                model_by_import,
+                model_by_string_ref,
+            )
+            if model is not None:
+                view_attrs.append(GenericViewObjectAttr(module_name, node.name, model))
+
+    return view_attrs
+
+
+def _skip_project_scan_path(source_file: Path, source_root: Path) -> bool:
+    relative_parts = source_file.relative_to(source_root).parts
+    skipped_parts = {".git", ".mypy_cache", ".ruff_cache", ".venv", "__pycache__", "typings"}
+    return any(part in skipped_parts for part in relative_parts)
+
+
+def _module_name_from_source(source_root: Path, source_file: Path) -> str | None:
+    relative = source_file.relative_to(source_root)
+    if relative.name == "__init__.py":
+        parts = relative.parent.parts
+    else:
+        parts = (*relative.parent.parts, relative.stem)
+    if not parts:
+        return None
+    if source_root.joinpath("__init__.py").exists():
+        parts = (source_root.name, *parts)
+    return ".".join(parts)
+
+
+def _model_by_import(django_context: DjangoStubbingContext) -> dict[tuple[str, str], ModelType]:
+    model_by_import: dict[tuple[str, str], ModelType] = {}
+    for model in django_context.models:
+        module = model._meta.app_config.models_module or inspect.getmodule(model)
+        if module is not None:
+            model_by_import[(module.__name__, model.__name__)] = model
+        model_by_import[(model._meta.app_label, model.__name__)] = model
+    return model_by_import
+
+
+def _model_by_string_ref(django_context: DjangoStubbingContext) -> dict[str, ModelType]:
+    refs: dict[str, ModelType] = {}
+    for model in django_context.models:
+        for label in (model._meta.label, model._meta.label_lower):
+            refs[label] = model
+        if not django_context.is_duplicate(model):
+            refs[model.__name__] = model
+    return refs
+
+
+def _module_model_imports(
+    tree: ast.Module,
+    module_name: str,
+    model_by_import: dict[tuple[str, str], ModelType],
+) -> tuple[dict[str, ModelType], dict[str, str]]:
+    imported_models: dict[str, ModelType] = {}
+    imported_modules: dict[str, str] = {}
+    for node in tree.body:
+        if isinstance(node, ast.ImportFrom):
+            imported_module = _resolve_import_from(module_name, node)
+            if imported_module is None:
+                continue
+            for alias in node.names:
+                model = model_by_import.get((imported_module, alias.name))
+                if model is not None:
+                    imported_models[alias.asname or alias.name] = model
+        elif isinstance(node, ast.Import):
+            for alias in node.names:
+                imported_modules[alias.asname or alias.name.split(".", maxsplit=1)[0]] = alias.name
+    return imported_models, imported_modules
+
+
+def _resolve_import_from(module_name: str, node: ast.ImportFrom) -> str | None:
+    if node.level == 0:
+        return node.module
+    package_parts = module_name.split(".")[:-1]
+    base = package_parts[: len(package_parts) - node.level + 1]
+    if node.module:
+        base.extend(node.module.split("."))
+    return ".".join(base) if base else None
+
+
+def _has_single_object_view_base(node: ast.ClassDef) -> bool:
+    return any(_base_name(base) in SINGLE_OBJECT_VIEW_BASES for base in node.bases)
+
+
+def _base_name(base: ast.expr) -> str | None:
+    if isinstance(base, ast.Name):
+        return base.id
+    if isinstance(base, ast.Attribute):
+        return base.attr
+    return None
+
+
+def _class_model_assignment(
+    node: ast.ClassDef,
+    imported_models: dict[str, ModelType],
+    imported_modules: dict[str, str],
+    model_by_import: dict[tuple[str, str], ModelType],
+    model_by_string_ref: dict[str, ModelType],
+) -> ModelType | None:
+    for statement in node.body:
+        if not isinstance(statement, ast.Assign) or not any(
+            isinstance(target, ast.Name) and target.id == "model" for target in statement.targets
+        ):
+            continue
+        return _resolve_model_expr(
+            statement.value,
+            imported_models,
+            imported_modules,
+            model_by_import,
+            model_by_string_ref,
+        )
+    return None
+
+
+def _resolve_model_expr(
+    value: ast.expr,
+    imported_models: dict[str, ModelType],
+    imported_modules: dict[str, str],
+    model_by_import: dict[tuple[str, str], ModelType],
+    model_by_string_ref: dict[str, ModelType],
+) -> ModelType | None:
+    if isinstance(value, ast.Name):
+        return imported_models.get(value.id)
+    if isinstance(value, ast.Constant) and isinstance(value.value, str):
+        return model_by_string_ref.get(value.value)
+    if isinstance(value, ast.Attribute):
+        module_name = _attribute_module_name(value.value, imported_modules)
+        if module_name is not None:
+            return model_by_import.get((module_name, value.attr))
+    return None
+
+
+def _attribute_module_name(value: ast.expr, imported_modules: dict[str, str]) -> str | None:
+    if isinstance(value, ast.Name):
+        return imported_modules.get(value.id)
+    if isinstance(value, ast.Attribute):
+        base_module = _attribute_module_name(value.value, imported_modules)
+        if base_module is not None:
+            return f"{base_module}.{value.attr}"
+    return None
+
+
+def _generic_view_imports(view_attrs: list[GenericViewObjectAttr]) -> list[str]:
+    imports: list[str] = []
+    for view_attr in view_attrs:
+        imports.append(f"from {view_attr.module_name} import {view_attr.class_name}")
+    return imports
 
 
 def _collect_model_dynamic_attr_types(django_context: DjangoStubbingContext) -> dict[str, dict[str, set[str]]]:
@@ -415,6 +661,17 @@ def _remove_generated_related_field_string_overloads(lines: list[str]) -> list[s
     return lines
 
 
+def _remove_generated_generic_view_object_attrs(lines: list[str]) -> list[str]:
+    while GENERIC_VIEW_OBJECT_ATTRS_START in lines:
+        start = lines.index(GENERIC_VIEW_OBJECT_ATTRS_START)
+        try:
+            end = lines.index(GENERIC_VIEW_OBJECT_ATTRS_END, start)
+        except ValueError:
+            break
+        del lines[start : end + 1]
+    return lines
+
+
 def _remove_generic_model_manager_attrs(lines: list[str]) -> list[str]:
     generic_attrs = {
         "    _base_manager: ClassVar[BaseManager[Self]]",
@@ -486,6 +743,13 @@ def _model_manager_attr_insert_index(lines: list[str]) -> int:
     raise RuntimeError("Could not find django-stubs ModelBase class for project model managers.")
 
 
+def _class_body_insert_index(lines: list[str], class_name: str) -> int:
+    for index, line in enumerate(lines):
+        if line.startswith((f"class {class_name}(", f"class {class_name}:")):
+            return index + 1
+    raise RuntimeError(f"Could not find django-stubs {class_name} class.")
+
+
 def _render_model_dynamic_attr_overloads(model_attr_types: dict[str, dict[str, set[str]]]) -> list[str]:
     lines = [MODEL_DYNAMIC_ATTRS_START]
     for model_name in sorted(model_attr_types):
@@ -518,6 +782,31 @@ def _render_model_manager_attr_overloads(model_manager_attr_types: dict[str, set
         ]
     )
     lines.append(MODEL_MANAGER_ATTRS_END)
+    return lines
+
+
+def _render_generic_view_object_attr_overloads(
+    django_context: DjangoStubbingContext,
+    view_attrs: list[GenericViewObjectAttr],
+) -> list[str]:
+    lines = [GENERIC_VIEW_OBJECT_ATTRS_START]
+    for view_attr in sorted(view_attrs, key=lambda item: (item.module_name, item.class_name)):
+        lines.extend(
+            [
+                "    @overload",
+                (
+                    f'    def __getattr__(self: {view_attr.class_name}, name: Literal["object"]) '
+                    f"-> {django_context.get_model_name(view_attr.model)}: ..."
+                ),
+            ]
+        )
+    lines.extend(
+        [
+            "    @overload",
+            '    def __getattr__(self, name: Literal["object"]) -> models.Model: ...',
+            GENERIC_VIEW_OBJECT_ATTRS_END,
+        ]
+    )
     return lines
 
 

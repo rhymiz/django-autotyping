@@ -266,12 +266,15 @@ def test_project_model_relationship_stubs_do_not_require_adjacent_model_stubs(tm
     auth = (local_stubs / "django-stubs" / "contrib" / "auth" / "models.pyi").read_text()
     related_fields = local_stubs / "django-stubs" / "db" / "models" / "fields" / "related.pyi"
     related = related_fields.read_text()
+    detail = (local_stubs / "django-stubs" / "views" / "generic" / "detail.pyi").read_text()
 
     assert "# django-autotyping project model attrs start" in base
     assert "# django-autotyping project model managers start" in base
     assert "# django-autotyping project string model overloads start" in related
+    assert "# django-autotyping project generic view object attrs start" in detail
     assert "def __getattr__(self: ModelOne, name: Literal[" in base
     assert "def __getattr__(cls: type[ModelOne], name: Literal[" in base
+    assert "def __getattr__(self: ModelOneDeleteView, name: Literal[\"object\"]) -> ModelOne: ..." in detail
     assert 'to: Literal["secondapp.ModelTwo"]' in related
     assert "-> ForeignKey[ModelTwo]: ..." in related
     assert related.count("# django-autotyping project string model overloads start") == RELATED_FIELD_STRING_OVERLOAD_BLOCKS
