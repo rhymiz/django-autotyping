@@ -36,22 +36,23 @@ def create_project_model_stubs(
     django_context: DjangoStubbingContext,
     stubs_settings: StubsGenerationSettings,
 ) -> None:
-    """Generate first-party ``models.pyi`` overlays for Django model modules."""
+    """Generate project-aware model relationship stubs."""
 
-    if stubs_settings.MODEL_STUBS_DIR is None:
+    source_root = stubs_settings.MODEL_STUBS_SOURCE_DIR or stubs_settings.MODEL_STUBS_DIR
+    if source_root is None:
         return
+    source_root = source_root.resolve()
 
-    stubs_root = stubs_settings.MODEL_STUBS_DIR.resolve()
-    source_root = (stubs_settings.MODEL_STUBS_SOURCE_DIR or stubs_settings.MODEL_STUBS_DIR).resolve()
+    if stubs_settings.MODEL_STUBS_DIR is not None:
+        stubs_root = stubs_settings.MODEL_STUBS_DIR.resolve()
+        for module, module_models in _group_project_models(django_context, source_root).items():
+            module_file = _module_file(module)
+            if module_file is None:
+                continue
 
-    for module, module_models in _group_project_models(django_context, source_root).items():
-        module_file = _module_file(module)
-        if module_file is None:
-            continue
-
-        target_path = stubs_root / module_file.relative_to(source_root).with_suffix(".pyi")
-        target_path.parent.mkdir(parents=True, exist_ok=True)
-        target_path.write_text(_render_module_stub(module, module_models, django_context), encoding="utf-8")
+            target_path = stubs_root / module_file.relative_to(source_root).with_suffix(".pyi")
+            target_path.parent.mkdir(parents=True, exist_ok=True)
+            target_path.write_text(_render_module_stub(module, module_models, django_context), encoding="utf-8")
 
     _augment_external_model_stubs(django_context, stubs_settings, source_root)
     _augment_model_base_dynamic_attrs(django_context, stubs_settings)
@@ -684,10 +685,10 @@ def _render_plain_class(node: ast.ClassDef, module: ModuleType) -> list[str]:
     value = getattr(module, node.name, None)
     if inspect.isclass(value) and issubclass(value, models.TextChoices):
         base = "models.TextChoices"
-        members = _choice_members(node, annotation=node.name)
+        members = _choice_members(node, annotation=f'"{node.name}"')
     elif inspect.isclass(value) and issubclass(value, models.IntegerChoices):
         base = "models.IntegerChoices"
-        members = _choice_members(node, annotation=node.name)
+        members = _choice_members(node, annotation=f'"{node.name}"')
     elif inspect.isclass(value) and issubclass(value, models.Manager):
         base = "models.Manager[Any]"
         members = _render_methods(node)
@@ -712,7 +713,7 @@ def _render_inner_classes(node: ast.ClassDef) -> list[str]:
             rendered.extend(
                 [
                     f"class {child.name}(models.TextChoices):",
-                    *_indent_lines(_choice_members(child, annotation=child.name)),
+                    *_indent_lines(_choice_members(child, annotation=f'"{node.name}.{child.name}"')),
                     "",
                 ]
             )
@@ -720,7 +721,7 @@ def _render_inner_classes(node: ast.ClassDef) -> list[str]:
             rendered.extend(
                 [
                     f"class {child.name}(models.IntegerChoices):",
-                    *_indent_lines(_choice_members(child, annotation=child.name)),
+                    *_indent_lines(_choice_members(child, annotation=f'"{node.name}.{child.name}"')),
                     "",
                 ]
             )

@@ -203,7 +203,7 @@ def test_project_model_stubs_include_dynamic_model_attrs(tmp_path, local_stubs, 
     assert "many_to_many_model_two: ManyToManyRelatedManager[" in firstapp
     assert "def default_zone(*args: Any, **kwargs: Any) -> Any: ..." in firstapp
     assert "class Meta:" in firstapp
-    assert "DRAFT: Status" in firstapp
+    assert 'DRAFT: "ChoiceModel.Status"' in firstapp
     assert "tzinfo: Any" in firstapp
     assert "def related_zone(self, *args: Any, **kwargs: Any) -> Any: ..." in firstapp
     assert "ZoneInfo" not in firstapp
@@ -225,6 +225,25 @@ def test_project_model_stubs_include_dynamic_model_attrs(tmp_path, local_stubs, 
 
     create_project_model_stubs(stubstestproj_context, stubs_settings)
     assert model_base.read_text().count("# django-autotyping project model attrs start") == 1
+
+
+def test_project_model_relationship_stubs_do_not_require_adjacent_model_stubs(tmp_path, local_stubs, stubstestproj_context):
+    stubs_settings = StubsGenerationSettings(
+        LOCAL_STUBS_DIR=local_stubs,
+        MODEL_STUBS_SOURCE_DIR=STUBSTESTPROJ,
+    )
+
+    create_project_model_stubs(stubstestproj_context, stubs_settings)
+
+    assert not (tmp_path / "firstapp" / "models.pyi").exists()
+
+    base = (local_stubs / "django-stubs" / "db" / "models" / "base.pyi").read_text()
+    auth = (local_stubs / "django-stubs" / "contrib" / "auth" / "models.pyi").read_text()
+
+    assert "# django-autotyping project model attrs start" in base
+    assert "def __getattr__(self: ModelOne, name: Literal[" in base
+    assert '"model_two_id"' in base
+    assert "class Group(models.Model):\n    generic_targets: RelatedManager[" in auth
 
 
 @pytest.mark.xfail(reason="mypy does not support setting the MYPYPATH without specifying a module or package to test.")

@@ -48,13 +48,17 @@ class StubsGenerationSettings:
 
     If this is the project root, stubs are written next to the corresponding
     ``models.py`` files, which lets type checkers use them for first-party
-    module resolution.
+    module resolution. Leave this unset to avoid adjacent ``models.pyi`` files
+    while still allowing project-aware relationship overlays via
+    ``MODEL_STUBS_SOURCE_DIR``.
     """
 
     MODEL_STUBS_SOURCE_DIR: Path | None = None
-    """The source root used to decide which model modules receive generated stubs.
+    """The source root used to decide which models are first-party.
 
-    If unset, ``MODEL_STUBS_DIR`` is also used as the source root.
+    If unset, ``MODEL_STUBS_DIR`` is also used as the source root. This can be
+    set without ``MODEL_STUBS_DIR`` to generate local django-stubs overlays for
+    dynamic model relationships without writing adjacent model-module stubs.
     """
 
     ALLOW_PLAIN_MODEL_REFERENCES: bool = True

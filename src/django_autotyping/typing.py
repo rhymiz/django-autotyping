@@ -67,10 +67,14 @@ class StubsGenerationSettingsDict(TypedDict, total=False):
     """
 
     MODEL_STUBS_DIR: Path | None
-    """The directory where first-party model-module stubs should be written."""
+    """The directory where first-party model-module stubs should be written.
+
+    Leave unset to avoid adjacent ``models.pyi`` files while still allowing
+    project-aware relationship overlays via ``MODEL_STUBS_SOURCE_DIR``.
+    """
 
     MODEL_STUBS_SOURCE_DIR: Path | None
-    """The source root used to decide which model modules receive generated stubs."""
+    """The source root used to decide which models are first-party."""
 
     ALLOW_PLAIN_MODEL_REFERENCES: bool
     """Whether string references in the form of `{model_name}` should be generated in overloads.
