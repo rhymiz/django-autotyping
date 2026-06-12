@@ -111,6 +111,20 @@ def test_context_list_supports_string_lookup(local_stubs, stubstestproj_context)
     assert upstream_fixed_getitem or generated_getitem_overloads
 
 
+def test_testcase_capture_on_commit_callbacks(local_stubs, stubstestproj_context):
+    stubs_settings = StubsGenerationSettings(LOCAL_STUBS_DIR=local_stubs)
+
+    codemods = gather_codemods(include=["DJAS020"])
+    run_codemods(codemods, stubstestproj_context, stubs_settings)
+
+    testcases_stubs = local_stubs / "django-stubs" / "test" / "testcases.pyi"
+    generated = testcases_stubs.read_text()
+
+    assert "from contextlib import AbstractContextManager" in generated
+    assert "def captureOnCommitCallbacks(" in generated
+    assert "AbstractContextManager[list[Callable[[], Any]]]" in generated
+
+
 def test_rest_framework_response_overlay_adds_redirect_url(tmp_path):
     try:
         importlib.metadata.distribution("djangorestframework-stubs")

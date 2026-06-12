@@ -16,6 +16,7 @@ from .query_lookups_overload_codemod import QueryLookupsOverloadCodemod
 from .reverse_overload_codemod import ReverseOverloadCodemod
 from .settings_codemod import SettingCodemod
 from .template_loading_codemod import TemplateLoadingCodemod
+from .test_case_codemod import TestCaseCodemod
 from .test_context_codemod import TestContextCodemod
 
 __all__ = (
@@ -31,6 +32,7 @@ __all__ = (
     "SettingCodemod",
     "StubVisitorBasedCodemod",
     "TemplateLoadingCodemod",
+    "TestCaseCodemod",
     "TestContextCodemod",
     "gather_codemods",
     "rules",
@@ -47,6 +49,7 @@ RulesT: TypeAlias = Literal[
     "DJAS017",
     "DJAS018",
     "DJAS019",
+    "DJAS020",
 ]
 
 rules: list[tuple[RulesT, type[StubVisitorBasedCodemod]]] = [
@@ -61,6 +64,7 @@ rules: list[tuple[RulesT, type[StubVisitorBasedCodemod]]] = [
     ("DJAS017", TemplateLoadingCodemod),
     ("DJAS018", DRFTestClientCodemod),
     ("DJAS019", TestContextCodemod),
+    ("DJAS020", TestCaseCodemod),
     # ("DJAS017", CallCommandCodemod),
 ]
 
