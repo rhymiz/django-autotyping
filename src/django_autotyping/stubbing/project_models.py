@@ -60,6 +60,8 @@ def create_project_model_stubs(
 
 MODEL_DYNAMIC_ATTRS_START = "    # django-autotyping project model attrs start"
 MODEL_DYNAMIC_ATTRS_END = "    # django-autotyping project model attrs end"
+MODEL_MANAGER_ATTRS_START = "    # django-autotyping project model managers start"
+MODEL_MANAGER_ATTRS_END = "    # django-autotyping project model managers end"
 
 
 def _group_project_models(
@@ -210,18 +212,24 @@ def _augment_model_base_dynamic_attrs(
         return
 
     model_attr_types = _collect_model_dynamic_attr_types(django_context)
-    if not model_attr_types:
+    model_manager_attr_types = _collect_model_manager_attr_types(django_context)
+    if not model_attr_types and not model_manager_attr_types:
         return
 
     lines = _remove_generated_model_dynamic_attrs(target_path.read_text(encoding="utf-8").splitlines())
+    lines = _remove_generated_model_manager_attrs(lines)
     lines = _inject_imports(
         lines,
         [
             *_model_imports(django_context),
+            *_model_manager_attr_imports(model_manager_attr_types),
             *_model_dynamic_attr_imports(model_attr_types),
         ],
     )
     lines = _ensure_typing_imports(lines, ["Literal", "overload"])
+    if model_manager_attr_types:
+        manager_insert_at = _model_manager_attr_insert_index(lines)
+        lines[manager_insert_at:manager_insert_at] = _render_model_manager_attr_overloads(model_manager_attr_types)
     insert_at = _model_dynamic_attr_insert_index(lines)
     lines[insert_at:insert_at] = _render_model_dynamic_attr_overloads(model_attr_types)
     target_path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
@@ -292,6 +300,15 @@ def _collect_model_dynamic_attr_types(django_context: DjangoStubbingContext) -> 
     return model_attr_types
 
 
+def _collect_model_manager_attr_types(django_context: DjangoStubbingContext) -> dict[str, set[str]]:
+    model_manager_attr_types: dict[str, set[str]] = {}
+    for model in django_context.models:
+        manager_names = {"_base_manager", "_default_manager", "objects"}
+        manager_names.update(manager.name for manager in model._meta.managers)
+        model_manager_attr_types[django_context.get_model_name(model)] = manager_names
+    return model_manager_attr_types
+
+
 def _dynamic_model_annotation(django_context: DjangoStubbingContext, model: ModelType | str) -> str:
     if isinstance(model, str):
         return "Any"
@@ -324,6 +341,23 @@ def _remove_generated_model_dynamic_attrs(lines: list[str]) -> list[str]:
             break
         del lines[start : end + 1]
     return lines
+
+
+def _remove_generated_model_manager_attrs(lines: list[str]) -> list[str]:
+    while MODEL_MANAGER_ATTRS_START in lines:
+        start = lines.index(MODEL_MANAGER_ATTRS_START)
+        try:
+            end = lines.index(MODEL_MANAGER_ATTRS_END, start)
+        except ValueError:
+            break
+        del lines[start : end + 1]
+    return lines
+
+
+def _model_manager_attr_imports(model_manager_attr_types: dict[str, set[str]]) -> list[str]:
+    if not model_manager_attr_types:
+        return []
+    return ["from django.db.models.manager import BaseManager"]
 
 
 def _model_dynamic_attr_imports(model_attr_types: dict[str, dict[str, set[str]]]) -> list[str]:
@@ -373,12 +407,38 @@ def _model_dynamic_attr_insert_index(lines: list[str]) -> int:
     raise RuntimeError("Could not find django-stubs Model class for project dynamic attributes.")
 
 
+def _model_manager_attr_insert_index(lines: list[str]) -> int:
+    for index, line in enumerate(lines):
+        if line.startswith("class ModelBase("):
+            if line.strip().endswith(": ..."):
+                lines[index] = line.replace(": ...", ":")
+            return index + 1
+    raise RuntimeError("Could not find django-stubs ModelBase class for project model managers.")
+
+
 def _render_model_dynamic_attr_overloads(model_attr_types: dict[str, dict[str, set[str]]]) -> list[str]:
     lines = [MODEL_DYNAMIC_ATTRS_START]
     for model_name in sorted(model_attr_types):
         lines.extend(_render_dynamic_attr_overloads_for_self(model_name, model_attr_types[model_name]))
     lines.extend(_render_dynamic_attr_overloads_for_self("Model", _global_model_dynamic_attr_types(model_attr_types)))
     lines.append(MODEL_DYNAMIC_ATTRS_END)
+    return lines
+
+
+def _render_model_manager_attr_overloads(model_manager_attr_types: dict[str, set[str]]) -> list[str]:
+    lines = [MODEL_MANAGER_ATTRS_START]
+    for model_name in sorted(model_manager_attr_types):
+        names = ", ".join(f'"{name}"' for name in sorted(model_manager_attr_types[model_name]))
+        lines.extend(
+            [
+                "    @overload",
+                (
+                    f"    def __getattr__(cls: type[{model_name}], "
+                    f"name: Literal[{names}]) -> BaseManager[{model_name}]: ..."
+                ),
+            ]
+        )
+    lines.append(MODEL_MANAGER_ATTRS_END)
     return lines
 
 

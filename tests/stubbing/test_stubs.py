@@ -211,8 +211,12 @@ def test_project_model_stubs_include_dynamic_model_attrs(tmp_path, local_stubs, 
     assert "modelone_set: RelatedManager[" in secondapp
     assert "class Group(models.Model):\n    generic_targets: RelatedManager[" in auth
     assert "# django-autotyping project model attrs start" in base
+    assert "# django-autotyping project model managers start" in base
     assert "from stubstestproj.firstapp.models import ModelOne" in base
     assert "def __getattr__(self: ModelOne, name: Literal[" in base
+    assert "def __getattr__(cls: type[ModelOne], name: Literal[" in base
+    assert '"_base_manager", "_default_manager", "objects"' in base
+    assert "-> BaseManager[ModelOne]: ..." in base
     assert "def __getattr__(self: Model, name: Literal[" in base
     assert '"model_two_id"' in base
     assert '"model_two_nullable_id"' in base
@@ -243,6 +247,7 @@ def test_project_model_stubs_include_dynamic_model_attrs(tmp_path, local_stubs, 
 
     create_project_model_stubs(stubstestproj_context, stubs_settings)
     assert model_base.read_text().count("# django-autotyping project model attrs start") == 1
+    assert model_base.read_text().count("# django-autotyping project model managers start") == 1
 
 
 def test_project_model_relationship_stubs_do_not_require_adjacent_model_stubs(tmp_path, local_stubs, stubstestproj_context):
@@ -259,7 +264,9 @@ def test_project_model_relationship_stubs_do_not_require_adjacent_model_stubs(tm
     auth = (local_stubs / "django-stubs" / "contrib" / "auth" / "models.pyi").read_text()
 
     assert "# django-autotyping project model attrs start" in base
+    assert "# django-autotyping project model managers start" in base
     assert "def __getattr__(self: ModelOne, name: Literal[" in base
+    assert "def __getattr__(cls: type[ModelOne], name: Literal[" in base
     assert '"model_two_id"' in base
     assert any(
         "self: ModelOne" in line and '"model_two"' in line and "-> ModelTwo" in line for line in base.splitlines()
