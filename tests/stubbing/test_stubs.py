@@ -75,6 +75,7 @@ def test_project_model_stubs_include_dynamic_model_attrs(tmp_path, stubstestproj
     assert "tzinfo: Any" in firstapp
     assert "def related_zone(self, *args: Any, **kwargs: Any) -> Any: ..." in firstapp
     assert "ZoneInfo" not in firstapp
+    assert "content_object: Any" in firstapp
     assert "modelone_set: RelatedManager[" in secondapp
 
 

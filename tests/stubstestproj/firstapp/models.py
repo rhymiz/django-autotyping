@@ -1,3 +1,5 @@
+from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.models import ContentType
 from django.db import models
 from zoneinfo import ZoneInfo
 
@@ -95,3 +97,9 @@ class ChoiceModel(AbstractTimestampedModel):
 
     def related_zone(self) -> ZoneInfo:
         return default_zone()
+
+
+class GenericTargetModel(models.Model):
+    content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
+    object_id = models.CharField(max_length=36)
+    content_object = GenericForeignKey("content_type", "object_id")

@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import ast
+import importlib
 import inspect
 from collections import defaultdict
 from pathlib import Path
 from types import ModuleType
 
+from django.core.exceptions import ImproperlyConfigured
 from django.db import models
 from django.db.models.fields.reverse_related import ForeignObjectRel, ManyToManyRel, OneToOneRel
 
@@ -168,6 +170,10 @@ def _render_model_class(
             f"{_many_to_many_manager_type(field.remote_field.through, field.remote_field.model, module, planner)}"
         )
 
+    for name, value in vars(model).items():
+        if _is_generic_foreign_key(value):
+            members.append(f"{name}: Any")
+
     for relation in model._meta.related_objects:
         accessor_name = relation.get_accessor_name()
         if not accessor_name or accessor_name == "+":
@@ -261,6 +267,17 @@ def _many_to_many_manager_type(
     )
     through_annotation = planner.annotation_for_model(through_model, module)
     return f"ManyToManyRelatedManager[{related_annotation}, {through_annotation}]"
+
+
+def _is_generic_foreign_key(value: object) -> bool:
+    try:
+        fields_module = importlib.import_module("django.contrib.contenttypes.fields")
+    except (ImportError, ImproperlyConfigured):
+        return False
+    generic_foreign_key = fields_module.GenericForeignKey
+    if not isinstance(generic_foreign_key, type):
+        return False
+    return isinstance(value, generic_foreign_key)
 
 
 def _render_plain_class(node: ast.ClassDef, module: ModuleType) -> list[str]:
