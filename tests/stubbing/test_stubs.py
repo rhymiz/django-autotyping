@@ -276,6 +276,10 @@ def test_project_model_relationship_stubs_do_not_require_adjacent_model_stubs(tm
     assert "def __getattr__(cls: type[ModelOne], name: Literal[" in base
     assert "def __getattr__(self: Model, name: Literal[" not in base
     assert "def __getattr__(self: ModelOneDeleteView, name: Literal[\"object\"]) -> ModelOne: ..." in detail
+    assert (
+        "def get_object(self: ModelOneDeleteView, queryset: models.query.QuerySet[Any] | None = ...) -> ModelOne: ..."
+        in detail
+    )
     assert 'to: Literal["secondapp.ModelTwo"]' in related
     assert "-> ForeignKey[ModelTwo]: ..." in related
     assert related.count("# django-autotyping project string model overloads start") == RELATED_FIELD_STRING_OVERLOAD_BLOCKS

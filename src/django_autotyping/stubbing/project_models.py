@@ -303,6 +303,7 @@ def _augment_generic_view_object_attrs(
 
     lines = _remove_generated_generic_view_object_attrs(target_path.read_text(encoding="utf-8").splitlines())
     lines = [line for line in lines if not line.startswith("    object: ")]
+    lines = _remove_get_object_signature(lines)
     lines = _inject_imports(
         lines,
         [
@@ -672,6 +673,19 @@ def _remove_generated_generic_view_object_attrs(lines: list[str]) -> list[str]:
     return lines
 
 
+def _remove_get_object_signature(lines: list[str]) -> list[str]:
+    for index, line in enumerate(lines):
+        if not line.startswith("    def get_object("):
+            continue
+        end = index
+        while end < len(lines) and not lines[end].strip().endswith(": ..."):
+            end += 1
+        if end < len(lines):
+            del lines[index : end + 1]
+        return lines
+    return lines
+
+
 def _remove_generic_model_manager_attrs(lines: list[str]) -> list[str]:
     generic_attrs = {
         "    _base_manager: ClassVar[BaseManager[Self]]",
@@ -799,10 +813,23 @@ def _render_generic_view_object_attr_overloads(
                 ),
             ]
         )
+    for view_attr in sorted(view_attrs, key=lambda item: (item.module_name, item.class_name)):
+        lines.extend(
+            [
+                "    @overload",
+                (
+                    f"    def get_object(self: {view_attr.class_name}, "
+                    f"queryset: models.query.QuerySet[Any] | None = ...) "
+                    f"-> {django_context.get_model_name(view_attr.model)}: ..."
+                ),
+            ]
+        )
     lines.extend(
         [
             "    @overload",
             '    def __getattr__(self, name: Literal["object"]) -> models.Model: ...',
+            "    @overload",
+            "    def get_object(self, queryset: models.query.QuerySet[Any] | None = ...) -> models.Model: ...",
             GENERIC_VIEW_OBJECT_ATTRS_END,
         ]
     )
