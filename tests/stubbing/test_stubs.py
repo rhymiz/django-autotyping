@@ -52,19 +52,26 @@ def test_model_init_kwargs_are_generated_once(local_stubs, stubstestproj_context
     assert base_stubs.read_text().count("class ModelOneInitKwargs(TypedDict, total=False):") == 1
 
 
-def test_project_model_stubs_include_dynamic_model_attrs(tmp_path, stubstestproj_context):
-    stubs_settings = StubsGenerationSettings(MODEL_STUBS_DIR=tmp_path, MODEL_STUBS_SOURCE_DIR=STUBSTESTPROJ)
+def test_project_model_stubs_include_dynamic_model_attrs(tmp_path, local_stubs, stubstestproj_context):
+    stubs_settings = StubsGenerationSettings(
+        LOCAL_STUBS_DIR=local_stubs,
+        MODEL_STUBS_DIR=tmp_path,
+        MODEL_STUBS_SOURCE_DIR=STUBSTESTPROJ,
+    )
 
     create_project_model_stubs(stubstestproj_context, stubs_settings)
 
     firstapp_models = tmp_path / "firstapp" / "models.pyi"
     secondapp_models = tmp_path / "secondapp" / "models.pyi"
+    auth_models = local_stubs / "django-stubs" / "contrib" / "auth" / "models.pyi"
 
     assert firstapp_models.exists()
     assert secondapp_models.exists()
+    assert auth_models.exists()
 
     firstapp = firstapp_models.read_text()
     secondapp = secondapp_models.read_text()
+    auth = auth_models.read_text()
 
     assert "model_two: _model_" in firstapp
     assert "model_two_id: int" in firstapp
@@ -77,6 +84,7 @@ def test_project_model_stubs_include_dynamic_model_attrs(tmp_path, stubstestproj
     assert "ZoneInfo" not in firstapp
     assert "content_object: Any" in firstapp
     assert "modelone_set: RelatedManager[" in secondapp
+    assert "generic_targets: RelatedManager[" in auth
 
 
 @pytest.mark.xfail(reason="mypy does not support setting the MYPYPATH without specifying a module or package to test.")

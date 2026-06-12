@@ -53,6 +53,8 @@ def create_project_model_stubs(
         target_path.parent.mkdir(parents=True, exist_ok=True)
         target_path.write_text(_render_module_stub(module, module_models, django_context), encoding="utf-8")
 
+    _augment_external_model_stubs(django_context, stubs_settings, source_root)
+
 
 def _group_project_models(
     django_context: DjangoStubbingContext,
@@ -138,6 +140,110 @@ def _render_module_stub(
     ]
 
     return "\n".join(imports + body).rstrip() + "\n"
+
+
+def _augment_external_model_stubs(
+    django_context: DjangoStubbingContext,
+    stubs_settings: StubsGenerationSettings,
+    source_root: Path,
+) -> None:
+    local_stubs_dir = stubs_settings.LOCAL_STUBS_DIR
+    if local_stubs_dir is None:
+        return
+
+    for module, module_models in _group_external_models(django_context, source_root).items():
+        target_path = _external_stub_path(module.__name__, local_stubs_dir)
+        if target_path is None:
+            continue
+
+        planner = ImportPlanner()
+        members_by_class: dict[str, list[str]] = {}
+        for model in module_models:
+            members: list[str] = []
+            for relation in model._meta.related_objects:
+                accessor_name = relation.get_accessor_name()
+                if not accessor_name or accessor_name == "+":
+                    continue
+                annotation = _reverse_relation_type(relation, module, planner)
+                if annotation is not None:
+                    members.append(f"{accessor_name}: {annotation}")
+            if members:
+                members_by_class[model.__name__] = _dedupe(members)
+
+        if not members_by_class:
+            continue
+
+        imports = [
+            "from django.db.models.manager import ManyToManyRelatedManager, RelatedManager",
+            *planner.render_imports(),
+        ]
+        source = target_path.read_text(encoding="utf-8")
+        target_path.write_text(_inject_class_members(source, members_by_class, imports), encoding="utf-8")
+
+
+def _group_external_models(
+    django_context: DjangoStubbingContext,
+    source_root: Path,
+) -> dict[ModuleType, list[ModelType]]:
+    grouped: dict[ModuleType, list[ModelType]] = defaultdict(list)
+
+    for model in django_context.models:
+        module = inspect.getmodule(model)
+        module_file = _module_file(module)
+        if module is None or module_file is None or _is_relative_to(module_file, source_root):
+            continue
+        grouped[module].append(model)
+
+    return dict(grouped)
+
+
+def _external_stub_path(module_name: str, local_stubs_dir: Path) -> Path | None:
+    module_path = Path(*module_name.split(".")).with_suffix(".pyi")
+    candidates = [local_stubs_dir / module_path]
+
+    if module_name.startswith("django."):
+        django_stub_path = Path(*module_name.removeprefix("django.").split(".")).with_suffix(".pyi")
+        candidates.insert(0, local_stubs_dir / "django-stubs" / django_stub_path)
+
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return None
+
+
+def _inject_class_members(
+    source: str,
+    members_by_class: dict[str, list[str]],
+    imports: list[str],
+) -> str:
+    lines = _inject_imports(source.splitlines(), imports)
+
+    for class_name, members in members_by_class.items():
+        new_members = [member for member in members if f"    {member}" not in lines]
+        if not new_members:
+            continue
+        for index, line in enumerate(lines):
+            stripped = line.strip()
+            if not stripped.startswith(f"class {class_name}") or not stripped.endswith((": ...", ":")):
+                continue
+            if stripped.endswith(": ..."):
+                lines[index] = line.replace(": ...", ":")
+            lines[index + 1 : index + 1] = [f"    {member}" for member in new_members]
+            break
+
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def _inject_imports(lines: list[str], imports: list[str]) -> list[str]:
+    insert_at = 0
+    for index, line in enumerate(lines):
+        if line.startswith(("import ", "from ")):
+            insert_at = index + 1
+
+    for import_line in reversed(imports):
+        if import_line not in lines:
+            lines.insert(insert_at, import_line)
+    return lines
 
 
 def _render_model_class(
