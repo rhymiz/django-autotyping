@@ -224,7 +224,7 @@ def _inject_class_members(
             continue
         for index, line in enumerate(lines):
             stripped = line.strip()
-            if not stripped.startswith(f"class {class_name}") or not stripped.endswith((": ...", ":")):
+            if not _is_class_definition(stripped, class_name) or not stripped.endswith((": ...", ":")):
                 continue
             if stripped.endswith(": ..."):
                 lines[index] = line.replace(": ...", ":")
@@ -244,6 +244,10 @@ def _inject_imports(lines: list[str], imports: list[str]) -> list[str]:
         if import_line not in lines:
             lines.insert(insert_at, import_line)
     return lines
+
+
+def _is_class_definition(line: str, class_name: str) -> bool:
+    return line.startswith((f"class {class_name}(", f"class {class_name}:"))
 
 
 def _render_model_class(

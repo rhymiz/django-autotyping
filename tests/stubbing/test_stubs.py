@@ -84,7 +84,7 @@ def test_project_model_stubs_include_dynamic_model_attrs(tmp_path, local_stubs, 
     assert "ZoneInfo" not in firstapp
     assert "content_object: Any" in firstapp
     assert "modelone_set: RelatedManager[" in secondapp
-    assert "generic_targets: RelatedManager[" in auth
+    assert "class Group(models.Model):\n    generic_targets: RelatedManager[" in auth
 
 
 @pytest.mark.xfail(reason="mypy does not support setting the MYPYPATH without specifying a module or package to test.")
