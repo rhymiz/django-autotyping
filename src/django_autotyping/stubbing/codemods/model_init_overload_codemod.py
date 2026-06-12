@@ -3,13 +3,11 @@ from __future__ import annotations
 import libcst as cst
 import libcst.matchers as m
 from libcst import helpers
-from libcst.codemod import CodemodContext
 
 from django_autotyping._compat import override
 from django_autotyping.typing import FlattenFunctionDef
 
 from ._model_creation import ModelCreationBaseCodemod
-from .base import InsertAfterImportsVisitor
 
 # Matchers:
 
@@ -40,15 +38,6 @@ class ModelInitOverloadCodemod(ModelCreationBaseCodemod):
 
     KWARGS_TYPED_DICT_NAME = "{model_name}InitKwargs"
     STUB_FILES = {"db/models/base.pyi"}
-
-    def __init__(self, context: CodemodContext) -> None:
-        super().__init__(context)
-        self.add_model_imports()
-        model_typed_dicts = self.build_model_kwargs()
-        InsertAfterImportsVisitor.insert_after_imports(context, model_typed_dicts)
-
-        # Even though these are most likely included, we import them for safety:
-        self.add_typing_imports(["TypedDict", "TypeVar", "Unpack", "overload"])
 
     @override
     def mutate_FunctionDef(self, original_node: cst.FunctionDef, updated_node: cst.FunctionDef) -> FlattenFunctionDef:

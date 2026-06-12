@@ -1,6 +1,9 @@
 import importlib
+import os
+import sys
 from pathlib import Path
 
+from django.conf import ENVIRONMENT_VARIABLE as DJANGO_SETTINGS_MODULE_ENV_KEY
 from django.conf import settings
 
 from django_autotyping.app_settings import StubsGenerationSettings
@@ -19,7 +22,8 @@ class Distribution:
 
 def get_generate_stubs_module():
     if not settings.configured:
-        settings.configure(AUTOTYPING={}, INSTALLED_APPS=[])
+        sys.path.append(str(Path(__file__).parents[1] / "stubstestproj"))
+        os.environ[DJANGO_SETTINGS_MODULE_ENV_KEY] = "settings"
     return importlib.import_module("django_autotyping.management.commands.generate_stubs")
 
 

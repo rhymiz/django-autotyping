@@ -41,6 +41,17 @@ def local_stubs(tmp_path) -> Path:
     return tmp_path
 
 
+def test_model_init_kwargs_are_generated_once(local_stubs, stubstestproj_context):
+    stubs_settings = StubsGenerationSettings(LOCAL_STUBS_DIR=local_stubs)
+
+    codemods = gather_codemods(include=["DJAS003"])
+    run_codemods(codemods, stubstestproj_context, stubs_settings)
+
+    base_stubs = local_stubs / "django-stubs" / "db" / "models" / "base.pyi"
+
+    assert base_stubs.read_text().count("class ModelOneInitKwargs(TypedDict, total=False):") == 1
+
+
 @pytest.mark.xfail(reason="mypy does not support setting the MYPYPATH without specifying a module or package to test.")
 @pytest.mark.mypy
 @testfiles_params
