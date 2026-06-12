@@ -217,6 +217,7 @@ def test_project_model_stubs_include_dynamic_model_attrs(tmp_path, local_stubs, 
     assert "def __getattr__(cls: type[ModelOne], name: Literal[" in base
     assert '"_base_manager", "_default_manager", "objects"' in base
     assert "-> BaseManager[ModelOne]: ..." in base
+    assert "objects: ClassVar[BaseManager[Self]]" not in base
     assert "def __getattr__(self: Model, name: Literal[" in base
     assert '"model_two_id"' in base
     assert '"model_two_nullable_id"' in base

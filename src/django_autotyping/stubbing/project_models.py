@@ -218,6 +218,8 @@ def _augment_model_base_dynamic_attrs(
 
     lines = _remove_generated_model_dynamic_attrs(target_path.read_text(encoding="utf-8").splitlines())
     lines = _remove_generated_model_manager_attrs(lines)
+    if model_manager_attr_types:
+        lines = _remove_generic_model_manager_attrs(lines)
     lines = _inject_imports(
         lines,
         [
@@ -352,6 +354,15 @@ def _remove_generated_model_manager_attrs(lines: list[str]) -> list[str]:
             break
         del lines[start : end + 1]
     return lines
+
+
+def _remove_generic_model_manager_attrs(lines: list[str]) -> list[str]:
+    generic_attrs = {
+        "    _base_manager: ClassVar[BaseManager[Self]]",
+        "    _default_manager: ClassVar[BaseManager[Self]]",
+        "    objects: ClassVar[BaseManager[Self]]",
+    }
+    return [line for line in lines if line not in generic_attrs]
 
 
 def _model_manager_attr_imports(model_manager_attr_types: dict[str, set[str]]) -> list[str]:
