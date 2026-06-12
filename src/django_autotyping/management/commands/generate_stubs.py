@@ -10,7 +10,12 @@ from django.core.management.base import BaseCommand, CommandParser
 
 from django_autotyping._compat import Unpack
 from django_autotyping.app_settings import AutotypingSettings
-from django_autotyping.stubbing import create_local_django_stubs, create_project_model_stubs, run_codemods
+from django_autotyping.stubbing import (
+    create_local_django_stubs,
+    create_local_rest_framework_stubs,
+    create_project_model_stubs,
+    run_codemods,
+)
 from django_autotyping.stubbing.codemods import RulesT, gather_codemods, rules
 from django_autotyping.stubbing.django_context import DjangoStubbingContext
 
@@ -49,6 +54,8 @@ class Command(BaseCommand):
         resolved_stubs_settings = dataclasses.replace(stubs_settings, LOCAL_STUBS_DIR=options["local_stubs_dir"])
 
         create_local_django_stubs(options["local_stubs_dir"], resolved_stubs_settings.SOURCE_STUBS_DIR)
+        if resolved_stubs_settings.DRF_TEST_CLIENT:
+            create_local_rest_framework_stubs(options["local_stubs_dir"])
         codemods = gather_codemods(options["ignore"])
 
         django_context = DjangoStubbingContext(apps, settings)

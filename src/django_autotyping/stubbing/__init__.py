@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 import libcst as cst
+import libcst.matchers as m
 from libcst.codemod import CodemodContext
 
 from django_autotyping.app_settings import StubsGenerationSettings
@@ -74,3 +75,44 @@ def create_local_django_stubs(stubs_dir: Path, source_django_stubs: Path | None 
     #     symlinked_path = stubs_dir / relative_stub_file
 
     #     stub_file.mkdir()
+
+
+def create_local_rest_framework_stubs(stubs_dir: Path) -> None:
+    """Create local overlays for Django REST Framework stubs."""
+    try:
+        distribution = importlib.metadata.distribution("djangorestframework-stubs")
+    except importlib.metadata.PackageNotFoundError:
+        return
+
+    response_stub = Path(distribution.locate_file("rest_framework-stubs/response.pyi"))
+    if not response_stub.is_file():
+        return
+
+    target_package = stubs_dir / "rest_framework"
+    target_package.mkdir(exist_ok=True)
+    (target_package / "__init__.pyi").touch()
+
+    input_module = cst.parse_module(response_stub.read_text(encoding="utf-8"))
+    output_module = input_module.visit(_DRFResponseStubTransformer())
+    (target_package / "response.pyi").write_text(output_module.code, encoding="utf-8")
+
+
+class _DRFResponseStubTransformer(cst.CSTTransformer):
+    def leave_ClassDef(self, original_node: cst.ClassDef, updated_node: cst.ClassDef) -> cst.ClassDef:
+        if original_node.name.value != "_MonkeyPatchedResponse":
+            return updated_node
+
+        if any(
+            m.matches(statement, m.SimpleStatementLine(body=[m.AnnAssign(target=m.Name("url"))]))
+            for statement in updated_node.body.body
+        ):
+            return updated_node
+
+        return updated_node.with_changes(
+            body=updated_node.body.with_changes(
+                body=[
+                    cst.parse_statement("url: str\n"),
+                    *updated_node.body.body,
+                ],
+            ),
+        )

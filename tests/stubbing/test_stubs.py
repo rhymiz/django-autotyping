@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import dataclasses
+import importlib.metadata
 import json
 import os
 from pathlib import Path
@@ -11,7 +12,12 @@ from mypy.api import run as run_mypy
 from pyright import main as run_pyright
 
 from django_autotyping.app_settings import StubsGenerationSettings
-from django_autotyping.stubbing import create_local_django_stubs, create_project_model_stubs, run_codemods
+from django_autotyping.stubbing import (
+    create_local_django_stubs,
+    create_local_rest_framework_stubs,
+    create_project_model_stubs,
+    run_codemods,
+)
 from django_autotyping.stubbing.codemods import gather_codemods
 
 TESTFILES = Path(__file__).parent / "testfiles"
@@ -103,6 +109,21 @@ def test_context_list_supports_string_lookup(local_stubs, stubstestproj_context)
         ]
     )
     assert upstream_fixed_getitem or generated_getitem_overloads
+
+
+def test_rest_framework_response_overlay_adds_redirect_url(tmp_path):
+    try:
+        importlib.metadata.distribution("djangorestframework-stubs")
+    except importlib.metadata.PackageNotFoundError:
+        pytest.skip("djangorestframework-stubs is not installed")
+
+    create_local_rest_framework_stubs(tmp_path)
+
+    response_stubs = tmp_path / "rest_framework" / "response.pyi"
+    generated = response_stubs.read_text()
+
+    assert (tmp_path / "rest_framework" / "__init__.pyi").exists()
+    assert "class _MonkeyPatchedResponse(Response):\n    url: str" in generated
 
 
 def test_project_model_stubs_include_dynamic_model_attrs(tmp_path, local_stubs, stubstestproj_context):
