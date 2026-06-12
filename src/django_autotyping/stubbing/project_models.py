@@ -267,10 +267,10 @@ def _render_plain_class(node: ast.ClassDef, module: ModuleType) -> list[str]:
     value = getattr(module, node.name, None)
     if inspect.isclass(value) and issubclass(value, models.TextChoices):
         base = "models.TextChoices"
-        members = _choice_members(node)
+        members = _choice_members(node, annotation="models.TextChoices")
     elif inspect.isclass(value) and issubclass(value, models.IntegerChoices):
         base = "models.IntegerChoices"
-        members = _choice_members(node)
+        members = _choice_members(node, annotation="models.IntegerChoices")
     elif inspect.isclass(value) and issubclass(value, models.Manager):
         base = "models.Manager[Any]"
         members = _render_methods(node)
@@ -292,25 +292,31 @@ def _render_inner_classes(node: ast.ClassDef) -> list[str]:
         if child.name == "Meta":
             rendered.extend(["class Meta:", "    ...", ""])
         elif _class_uses_base(child, "TextChoices"):
-            rendered.extend([f"class {child.name}(models.TextChoices):", *_indent_lines(_choice_members(child)), ""])
+            rendered.extend(
+                [
+                    f"class {child.name}(models.TextChoices):",
+                    *_indent_lines(_choice_members(child, annotation="models.TextChoices")),
+                    "",
+                ]
+            )
         elif _class_uses_base(child, "IntegerChoices"):
             rendered.extend(
                 [
                     f"class {child.name}(models.IntegerChoices):",
-                    *_indent_lines(_choice_members(child)),
+                    *_indent_lines(_choice_members(child, annotation="models.IntegerChoices")),
                     "",
                 ]
             )
     return rendered
 
 
-def _choice_members(node: ast.ClassDef) -> list[str]:
+def _choice_members(node: ast.ClassDef, *, annotation: str) -> list[str]:
     members: list[str] = []
     for child in node.body:
         if isinstance(child, ast.Assign):
             for target in child.targets:
                 if isinstance(target, ast.Name):
-                    members.append(f"{target.id}: {node.name}")
+                    members.append(f"{target.id}: {annotation}")
     return members or ["..."]
 
 
