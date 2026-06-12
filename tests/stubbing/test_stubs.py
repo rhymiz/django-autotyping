@@ -165,6 +165,7 @@ def test_project_model_stubs_include_dynamic_model_attrs(tmp_path, local_stubs, 
     firstapp_models = tmp_path / "firstapp" / "models.pyi"
     secondapp_models = tmp_path / "secondapp" / "models.pyi"
     auth_models = local_stubs / "django-stubs" / "contrib" / "auth" / "models.pyi"
+    model_base = local_stubs / "django-stubs" / "db" / "models" / "base.pyi"
 
     assert firstapp_models.exists()
     assert secondapp_models.exists()
@@ -173,6 +174,7 @@ def test_project_model_stubs_include_dynamic_model_attrs(tmp_path, local_stubs, 
     firstapp = firstapp_models.read_text()
     secondapp = secondapp_models.read_text()
     auth = auth_models.read_text()
+    base = model_base.read_text()
 
     assert "model_two: _model_" in firstapp
     assert "model_two_id: int" in firstapp
@@ -186,6 +188,18 @@ def test_project_model_stubs_include_dynamic_model_attrs(tmp_path, local_stubs, 
     assert "content_object: Any" in firstapp
     assert "modelone_set: RelatedManager[" in secondapp
     assert "class Group(models.Model):\n    generic_targets: RelatedManager[" in auth
+    assert "# django-autotyping project model attrs start" in base
+    assert '"model_two_id"' in base
+    assert '"model_two_nullable_id"' in base
+    assert '"modelone_set"' in base
+    assert '"many_to_many_model_two"' in base
+    assert '"content_object"' in base
+    assert "-> int | None: ..." in base
+    assert "-> RelatedManager[Any]: ..." in base
+    assert "-> ManyToManyRelatedManager[Any, Any]: ..." in base
+
+    create_project_model_stubs(stubstestproj_context, stubs_settings)
+    assert model_base.read_text().count("# django-autotyping project model attrs start") == 1
 
 
 @pytest.mark.xfail(reason="mypy does not support setting the MYPYPATH without specifying a module or package to test.")
