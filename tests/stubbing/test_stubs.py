@@ -220,8 +220,26 @@ def test_project_model_stubs_include_dynamic_model_attrs(tmp_path, local_stubs, 
     assert '"many_to_many_model_two"' in base
     assert '"content_object"' in base
     assert "-> int | None: ..." in base
-    assert "-> RelatedManager[Any]: ..." in base
-    assert "-> ManyToManyRelatedManager[Any, Any]: ..." in base
+    assert any(
+        "self: ModelOne" in line and '"model_two"' in line and "-> ModelTwo" in line for line in base.splitlines()
+    )
+    assert any(
+        "self: ModelOne" in line and '"model_two_nullable"' in line and "-> ModelTwo | None" in line
+        for line in base.splitlines()
+    )
+    assert any(
+        "self: ModelOne" in line
+        and '"many_to_many_model_two"' in line
+        and "-> ManyToManyRelatedManager[ModelTwo, Any]" in line
+        for line in base.splitlines()
+    )
+    assert any(
+        "self: ModelTwo" in line
+        and '"modelone_set"' in line
+        and "ManyToManyRelatedManager[ModelOne, Any]" in line
+        and "RelatedManager[ModelOne]" in line
+        for line in base.splitlines()
+    )
 
     create_project_model_stubs(stubstestproj_context, stubs_settings)
     assert model_base.read_text().count("# django-autotyping project model attrs start") == 1
@@ -243,6 +261,16 @@ def test_project_model_relationship_stubs_do_not_require_adjacent_model_stubs(tm
     assert "# django-autotyping project model attrs start" in base
     assert "def __getattr__(self: ModelOne, name: Literal[" in base
     assert '"model_two_id"' in base
+    assert any(
+        "self: ModelOne" in line and '"model_two"' in line and "-> ModelTwo" in line for line in base.splitlines()
+    )
+    assert any(
+        "self: ModelTwo" in line
+        and '"modelone_set"' in line
+        and "ManyToManyRelatedManager[ModelOne, Any]" in line
+        and "RelatedManager[ModelOne]" in line
+        for line in base.splitlines()
+    )
     assert "class Group(models.Model):\n    generic_targets: RelatedManager[" in auth
 
 

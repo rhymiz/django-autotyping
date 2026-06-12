@@ -245,7 +245,10 @@ def _collect_model_dynamic_attr_types(django_context: DjangoStubbingContext) -> 
         planner = ImportPlanner()
         for field in model._meta.fields:
             if isinstance(field.remote_field, ForeignObjectRel) and not isinstance(field.remote_field.model, str):
-                attr_types[field.name].add("Any")
+                relation_annotation = _dynamic_model_annotation(django_context, field.remote_field.model)
+                if field.null:
+                    relation_annotation = f"{relation_annotation} | None"
+                attr_types[field.name].add(relation_annotation)
                 annotation = _field_value_type(field.target_field, module, planner)
             else:
                 annotation = _field_value_type(field, module, planner)
@@ -255,7 +258,13 @@ def _collect_model_dynamic_attr_types(django_context: DjangoStubbingContext) -> 
             attr_types[field.attname].add(annotation)
 
         for field in model._meta.many_to_many:
-            attr_types[field.name].add("ManyToManyRelatedManager[Any, Any]")
+            attr_types[field.name].add(
+                _dynamic_many_to_many_manager_type(
+                    django_context,
+                    field.remote_field.through,
+                    field.remote_field.model,
+                )
+            )
 
         for name, value in vars(model).items():
             if _is_generic_foreign_key(value):
@@ -266,13 +275,44 @@ def _collect_model_dynamic_attr_types(django_context: DjangoStubbingContext) -> 
             if not accessor_name or accessor_name == "+":
                 continue
             if isinstance(relation, OneToOneRel):
-                attr_types[accessor_name].add("Any")
+                attr_types[accessor_name].add(_dynamic_model_annotation(django_context, relation.related_model))
             elif isinstance(relation, ManyToManyRel):
-                attr_types[accessor_name].add("ManyToManyRelatedManager[Any, Any]")
+                attr_types[accessor_name].add(
+                    _dynamic_many_to_many_manager_type(
+                        django_context,
+                        relation.through,
+                        relation.related_model,
+                    )
+                )
             else:
-                attr_types[accessor_name].add("RelatedManager[Any]")
+                attr_types[accessor_name].add(
+                    f"RelatedManager[{_dynamic_model_annotation(django_context, relation.related_model)}]"
+                )
         model_attr_types[django_context.get_model_name(model)] = attr_types
     return model_attr_types
+
+
+def _dynamic_model_annotation(django_context: DjangoStubbingContext, model: ModelType | str) -> str:
+    if isinstance(model, str):
+        return "Any"
+
+    concrete_model = model._meta.concrete_model
+    if concrete_model not in django_context.models:
+        return "Any"
+    return django_context.get_model_name(concrete_model)
+
+
+def _dynamic_many_to_many_manager_type(
+    django_context: DjangoStubbingContext,
+    through_model: ModelType,
+    related_model: ModelType | str,
+) -> str:
+    return (
+        "ManyToManyRelatedManager["
+        f"{_dynamic_model_annotation(django_context, related_model)}, "
+        f"{_dynamic_model_annotation(django_context, through_model)}"
+        "]"
+    )
 
 
 def _remove_generated_model_dynamic_attrs(lines: list[str]) -> list[str]:
