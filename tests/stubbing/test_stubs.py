@@ -122,7 +122,7 @@ def test_testcase_capture_on_commit_callbacks(local_stubs, stubstestproj_context
 
     assert "from contextlib import AbstractContextManager" in generated
     assert "def captureOnCommitCallbacks(" in generated
-    assert "AbstractContextManager[list[Callable[[], Any]]]" in generated
+    assert "AbstractContextManager[list[Callable[[], None]]]" in generated
 
 
 def test_testcase_codemods_are_cumulative(local_stubs, stubstestproj_context):

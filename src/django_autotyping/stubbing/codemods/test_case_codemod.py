@@ -15,7 +15,7 @@ CAPTURE_ON_COMMIT_CALLBACKS_DEF = helpers.parse_template_statement(
 @classmethod
 def captureOnCommitCallbacks(
     cls, *, using: str = ..., execute: bool = ...
-) -> AbstractContextManager[list[Callable[[], Any]]]: ...
+) -> AbstractContextManager[list[Callable[[], None]]]: ...
 """
 )
 
@@ -34,14 +34,23 @@ class TestCaseCodemod(StubVisitorBasedCodemod):
 
     @m.leave(TEST_CASE_MATCHER)
     def mutate_ClassDef(self, original_node: cst.ClassDef, updated_node: cst.ClassDef) -> cst.ClassDef:
-        if any(
-            m.matches(statement, m.FunctionDef(name=m.Name("captureOnCommitCallbacks")))
+        has_method = False
+        body = [
+            CAPTURE_ON_COMMIT_CALLBACKS_DEF
+            if m.matches(statement, m.FunctionDef(name=m.Name("captureOnCommitCallbacks")))
+            else statement
             for statement in updated_node.body.body
-        ):
-            return updated_node
+        ]
+        for statement in updated_node.body.body:
+            if m.matches(statement, m.FunctionDef(name=m.Name("captureOnCommitCallbacks"))):
+                has_method = True
+                break
+
+        if has_method:
+            return updated_node.with_changes(body=updated_node.body.with_changes(body=body))
 
         return updated_node.with_changes(
             body=updated_node.body.with_changes(
-                body=[*updated_node.body.body, CAPTURE_ON_COMMIT_CALLBACKS_DEF],
+                body=[*body, CAPTURE_ON_COMMIT_CALLBACKS_DEF],
             ),
         )
