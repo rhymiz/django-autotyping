@@ -754,7 +754,6 @@ def _render_model_dynamic_attr_overloads(model_attr_types: dict[str, dict[str, s
     lines = [MODEL_DYNAMIC_ATTRS_START]
     for model_name in sorted(model_attr_types):
         lines.extend(_render_dynamic_attr_overloads_for_self(model_name, model_attr_types[model_name]))
-    lines.extend(_render_dynamic_attr_overloads_for_self("Model", _global_model_dynamic_attr_types(model_attr_types)))
     lines.append(MODEL_DYNAMIC_ATTRS_END)
     return lines
 
@@ -884,14 +883,6 @@ def _render_dynamic_attr_overloads_for_self(self_type: str, attr_types: dict[str
             ]
         )
     return lines
-
-
-def _global_model_dynamic_attr_types(model_attr_types: dict[str, dict[str, set[str]]]) -> dict[str, set[str]]:
-    attr_types: dict[str, set[str]] = defaultdict(set)
-    for model_attrs in model_attr_types.values():
-        for name, attr_annotations in model_attrs.items():
-            attr_types[name].update(attr_annotations)
-    return attr_types
 
 
 def _collapse_annotations(annotations: set[str]) -> str:

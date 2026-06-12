@@ -219,7 +219,7 @@ def test_project_model_stubs_include_dynamic_model_attrs(tmp_path, local_stubs, 
     assert '"_base_manager", "_default_manager", "objects"' in base
     assert "-> BaseManager[ModelOne]: ..." in base
     assert "objects: ClassVar[BaseManager[Self]]" not in base
-    assert "def __getattr__(self: Model, name: Literal[" in base
+    assert "def __getattr__(self: Model, name: Literal[" not in base
     assert '"model_two_id"' in base
     assert '"model_two_nullable_id"' in base
     assert '"modelone_set"' in base
@@ -274,6 +274,7 @@ def test_project_model_relationship_stubs_do_not_require_adjacent_model_stubs(tm
     assert "# django-autotyping project generic view object attrs start" in detail
     assert "def __getattr__(self: ModelOne, name: Literal[" in base
     assert "def __getattr__(cls: type[ModelOne], name: Literal[" in base
+    assert "def __getattr__(self: Model, name: Literal[" not in base
     assert "def __getattr__(self: ModelOneDeleteView, name: Literal[\"object\"]) -> ModelOne: ..." in detail
     assert 'to: Literal["secondapp.ModelTwo"]' in related
     assert "-> ForeignKey[ModelTwo]: ..." in related
