@@ -154,6 +154,15 @@ def _augment_external_model_stubs(
     for module, module_models in _group_external_models(django_context, source_root).items():
         target_path = _external_stub_path(module.__name__, local_stubs_dir)
         if target_path is None:
+            if not _has_project_relation(module_models, source_root):
+                continue
+            target_path = _external_stub_package_path(module.__name__, local_stubs_dir)
+            _write_partial_stub_marker(target_path)
+            target_path.parent.mkdir(parents=True, exist_ok=True)
+            target_path.write_text(
+                _render_module_stub(module, _model_classes_in_module(module), django_context),
+                encoding="utf-8",
+            )
             continue
 
         planner = ImportPlanner()
@@ -197,6 +206,18 @@ def _group_external_models(
     return dict(grouped)
 
 
+def _has_project_relation(module_models: list[ModelType], source_root: Path) -> bool:
+    for model in module_models:
+        for relation in model._meta.related_objects:
+            related_model = relation.related_model
+            if isinstance(related_model, str):
+                continue
+            module_file = _module_file(inspect.getmodule(related_model))
+            if module_file is not None and _is_relative_to(module_file, source_root):
+                return True
+    return False
+
+
 def _external_stub_path(module_name: str, local_stubs_dir: Path) -> Path | None:
     module_path = Path(*module_name.split(".")).with_suffix(".pyi")
     candidates = [local_stubs_dir / module_path]
@@ -209,6 +230,19 @@ def _external_stub_path(module_name: str, local_stubs_dir: Path) -> Path | None:
         if candidate.exists():
             return candidate
     return None
+
+
+def _external_stub_package_path(module_name: str, local_stubs_dir: Path) -> Path:
+    package, *module_parts = module_name.split(".")
+    return local_stubs_dir / f"{package}-stubs" / Path(*module_parts).with_suffix(".pyi")
+
+
+def _write_partial_stub_marker(stub_file: Path) -> None:
+    for parent in stub_file.parents:
+        if parent.name.endswith("-stubs"):
+            parent.mkdir(parents=True, exist_ok=True)
+            parent.joinpath("py.typed").write_text("partial\n", encoding="utf-8")
+            return
 
 
 def _inject_class_members(
@@ -263,6 +297,7 @@ def _render_model_class(
         f"_default_manager: ClassVar[BaseManager[{class_name}]]",
         f"_base_manager: ClassVar[BaseManager[{class_name}]]",
     ]
+    members.extend(_render_model_constants(model))
 
     for manager in model._meta.managers:
         members.append(f"{manager.name}: ClassVar[BaseManager[{class_name}]]")
@@ -298,6 +333,25 @@ def _render_model_class(
     lines.extend(_indent_lines(_dedupe(members)) or ["    ..."])
     lines.append("")
     return lines
+
+
+def _render_model_constants(model: ModelType) -> list[str]:
+    members: list[str] = []
+    for name in dir(model):
+        if not name.isupper():
+            continue
+        try:
+            value = getattr(model, name)
+        except Exception:
+            continue
+        if isinstance(value, str):
+            annotation = "str"
+        elif isinstance(value, int):
+            annotation = "int"
+        else:
+            annotation = "Any"
+        members.append(f"{name}: ClassVar[{annotation}]")
+    return members
 
 
 def _render_field_attributes(field: models.Field, module: ModuleType, planner: ImportPlanner) -> list[str]:
