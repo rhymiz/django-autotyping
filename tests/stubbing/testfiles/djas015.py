@@ -4,6 +4,8 @@ reverse("item-list")
 reverse("item-list", kwargs={})
 reverse("item-list", kwargs={"format": "json"})
 
-reverse("item-detail")  # type: ignore
+for route_name in ["item-list"]:
+    reverse(route_name)
+
 reverse("item-detail", kwargs={"pk": 1})
 reverse("item-detail", kwargs={"pk": 1, "format": "json"})

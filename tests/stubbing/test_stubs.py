@@ -53,6 +53,20 @@ def test_model_init_kwargs_are_generated_once(local_stubs, stubstestproj_context
     assert base_stubs.read_text().count("class ModelOneInitKwargs(TypedDict, total=False):") == 1
 
 
+def test_reverse_overloads_preserve_dynamic_str_fallback(local_stubs, stubstestproj_context):
+    stubs_settings = StubsGenerationSettings(LOCAL_STUBS_DIR=local_stubs)
+
+    codemods = gather_codemods(include=["DJAS015"])
+    run_codemods(codemods, stubstestproj_context, stubs_settings)
+
+    base_stubs = local_stubs / "django-stubs" / "urls" / "base.pyi"
+    generated = base_stubs.read_text()
+
+    assert "viewname: Callable[..., HttpResponseBase] | str | None," in generated
+    assert 'viewname: Literal["item-detail"],' in generated
+    assert "kwargs: _24DFE8Kwargs | _2AD99CKwargs," in generated
+
+
 def test_project_model_stubs_include_dynamic_model_attrs(tmp_path, local_stubs, stubstestproj_context):
     stubs_settings = StubsGenerationSettings(
         LOCAL_STUBS_DIR=local_stubs,

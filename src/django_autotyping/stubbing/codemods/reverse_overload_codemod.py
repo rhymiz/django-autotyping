@@ -176,13 +176,6 @@ class ReverseOverloadCodemod(StubVisitorBasedCodemod):
 
                 overloads.append(overload_param_star)
 
-        # Remove the `str` annotation from `viewname` in the fallback overloads, so that
-        # only literals will match:
-        overload = overload.with_deep_changes(
-            old_node=get_param(overload, "viewname"),
-            annotation=cst.Annotation(helpers.parse_template_expression("Callable[..., Any] | None")),
-        )
-
         return cst.FlattenSentinel([*overloads, overload])
 
 
