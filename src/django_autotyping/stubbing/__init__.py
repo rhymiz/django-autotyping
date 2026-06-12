@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import importlib.metadata
 import shutil
 import site
+import sys
 from pathlib import Path
 
 import libcst as cst
@@ -37,9 +39,20 @@ def run_codemods(
 
 
 def _get_django_stubs_dir() -> Path:
-    # TODO should we use importlib.metadata.files instead?
-    for dir in site.getsitepackages():
-        if (path := Path(dir, "django-stubs")).is_dir():
+    try:
+        distribution = importlib.metadata.distribution("django-stubs")
+    except importlib.metadata.PackageNotFoundError:
+        distribution = None
+    if distribution is not None:
+        candidate = Path(distribution.locate_file("django-stubs"))
+        if candidate.is_dir():
+            return candidate
+
+    search_paths = [*site.getsitepackages(), site.getusersitepackages(), *sys.path]
+    for path_entry in search_paths:
+        if not path_entry:
+            continue
+        if (path := Path(path_entry, "django-stubs")).is_dir():
             return path
     raise RuntimeError("Couldn't find 'django-stubs' in any of the site packages.")
 

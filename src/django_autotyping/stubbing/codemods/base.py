@@ -60,6 +60,8 @@ class InsertAfterImportsVisitor(ContextAwareTransformer):
 class StubVisitorBasedCodemod(VisitorBasedCodemodCommand, ABC):
     """The base class for all codemods used for custom stub files."""
 
+    __provides__ = None
+
     STUB_FILES: ClassVar[set[str]]
     """A set of stub files the codemod should apply to."""
 

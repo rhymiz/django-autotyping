@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 from pathlib import Path
 from typing import Any
 
@@ -45,8 +46,10 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args: Any, **options: Unpack[CommandOptions]) -> None:
-        create_local_django_stubs(options["local_stubs_dir"], stubs_settings.SOURCE_STUBS_DIR)
+        resolved_stubs_settings = dataclasses.replace(stubs_settings, LOCAL_STUBS_DIR=options["local_stubs_dir"])
+
+        create_local_django_stubs(options["local_stubs_dir"], resolved_stubs_settings.SOURCE_STUBS_DIR)
         codemods = gather_codemods(options["ignore"])
 
         django_context = DjangoStubbingContext(apps, settings)
-        run_codemods(codemods, django_context, stubs_settings)
+        run_codemods(codemods, django_context, resolved_stubs_settings)
