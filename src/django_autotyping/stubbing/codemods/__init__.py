@@ -10,6 +10,7 @@ from .call_command_codemod import CallCommandCodemod
 from .create_overload_codemod import CreateOverloadCodemod
 from .drf_test_client_codemod import DRFTestClientCodemod
 from .forward_relation_overload_codemod import ForwardRelationOverloadCodemod
+from .generic_view_attrs_codemod import GenericViewAttrsCodemod
 from .get_model_overload_codemod import GetModelOverloadCodemod
 from .model_init_overload_codemod import ModelInitOverloadCodemod
 from .query_lookups_overload_codemod import QueryLookupsOverloadCodemod
@@ -25,6 +26,7 @@ __all__ = (
     "CreateOverloadCodemod",
     "DRFTestClientCodemod",
     "ForwardRelationOverloadCodemod",
+    "GenericViewAttrsCodemod",
     "GetModelOverloadCodemod",
     "QueryLookupsOverloadCodemod",
     "ReverseOverloadCodemod",
@@ -50,6 +52,7 @@ RulesT: TypeAlias = Literal[
     "DJAS018",
     "DJAS019",
     "DJAS020",
+    "DJAS021",
 ]
 
 rules: list[tuple[RulesT, type[StubVisitorBasedCodemod]]] = [
@@ -65,6 +68,7 @@ rules: list[tuple[RulesT, type[StubVisitorBasedCodemod]]] = [
     ("DJAS018", DRFTestClientCodemod),
     ("DJAS019", TestContextCodemod),
     ("DJAS020", TestCaseCodemod),
+    ("DJAS021", GenericViewAttrsCodemod),
     # ("DJAS017", CallCommandCodemod),
 ]
 

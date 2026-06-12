@@ -141,6 +141,19 @@ def test_testcase_codemods_are_cumulative(local_stubs, stubstestproj_context):
     assert "def captureOnCommitCallbacks(" in generated
 
 
+def test_generic_view_runtime_attrs(local_stubs, stubstestproj_context):
+    stubs_settings = StubsGenerationSettings(LOCAL_STUBS_DIR=local_stubs)
+
+    codemods = gather_codemods(include=["DJAS021"])
+    run_codemods(codemods, stubstestproj_context, stubs_settings)
+
+    detail_stubs = local_stubs / "django-stubs" / "views" / "generic" / "detail.pyi"
+    list_stubs = local_stubs / "django-stubs" / "views" / "generic" / "list.pyi"
+
+    assert "    object: models.Model\n" in detail_stubs.read_text()
+    assert "    object_list: _BaseQuerySet[Any]\n" in list_stubs.read_text()
+
+
 def test_rest_framework_response_overlay_adds_redirect_url(tmp_path):
     try:
         importlib.metadata.distribution("djangorestframework-stubs")

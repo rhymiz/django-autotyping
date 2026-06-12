@@ -18,7 +18,19 @@ else:
 
 
 RulesT: TypeAlias = Literal[
-    "DJA001", "DJAS001", "DJAS002", "DJAS003", "DJAS010", "DJAS011", "DJAS015", "DJAS016", "DJAS017"
+    "DJA001",
+    "DJAS001",
+    "DJAS002",
+    "DJAS003",
+    "DJAS010",
+    "DJAS011",
+    "DJAS015",
+    "DJAS016",
+    "DJAS017",
+    "DJAS018",
+    "DJAS019",
+    "DJAS020",
+    "DJAS021",
 ]
 
 
