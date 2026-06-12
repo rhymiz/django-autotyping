@@ -119,10 +119,10 @@ def test_rest_framework_response_overlay_adds_redirect_url(tmp_path):
 
     create_local_rest_framework_stubs(tmp_path)
 
-    response_stubs = tmp_path / "rest_framework" / "response.pyi"
+    response_stubs = tmp_path / "rest_framework-stubs" / "response.pyi"
     generated = response_stubs.read_text()
 
-    assert (tmp_path / "rest_framework" / "__init__.pyi").exists()
+    assert (tmp_path / "rest_framework-stubs" / "__init__.pyi").exists()
     assert "class _MonkeyPatchedResponse(Response):\n    url: str" in generated
 
 

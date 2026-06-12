@@ -84,17 +84,18 @@ def create_local_rest_framework_stubs(stubs_dir: Path) -> None:
     except importlib.metadata.PackageNotFoundError:
         return
 
-    response_stub = Path(distribution.locate_file("rest_framework-stubs/response.pyi"))
-    if not response_stub.is_file():
+    source_stubs = Path(distribution.locate_file("rest_framework-stubs"))
+    if not source_stubs.is_dir():
         return
 
-    target_package = stubs_dir / "rest_framework"
-    target_package.mkdir(exist_ok=True)
-    (target_package / "__init__.pyi").touch()
+    target_package = stubs_dir / "rest_framework-stubs"
+    if not target_package.is_dir():
+        shutil.copytree(source_stubs, target_package)
 
+    response_stub = target_package / "response.pyi"
     input_module = cst.parse_module(response_stub.read_text(encoding="utf-8"))
     output_module = input_module.visit(_DRFResponseStubTransformer())
-    (target_package / "response.pyi").write_text(output_module.code, encoding="utf-8")
+    response_stub.write_text(output_module.code, encoding="utf-8")
 
 
 class _DRFResponseStubTransformer(cst.CSTTransformer):
