@@ -157,8 +157,9 @@ def _augment_external_model_stubs(
             if not _has_project_relation(module_models, source_root):
                 continue
             target_path = _external_stub_package_path(module.__name__, local_stubs_dir)
-            _write_partial_stub_marker(target_path)
             target_path.parent.mkdir(parents=True, exist_ok=True)
+            _write_package_stub_init(target_path)
+            _write_auxiliary_package_stubs(module, target_path)
             target_path.write_text(
                 _render_module_stub(module, _model_classes_in_module(module), django_context),
                 encoding="utf-8",
@@ -234,15 +235,63 @@ def _external_stub_path(module_name: str, local_stubs_dir: Path) -> Path | None:
 
 def _external_stub_package_path(module_name: str, local_stubs_dir: Path) -> Path:
     package, *module_parts = module_name.split(".")
-    return local_stubs_dir / f"{package}-stubs" / Path(*module_parts).with_suffix(".pyi")
+    return local_stubs_dir / package / Path(*module_parts).with_suffix(".pyi")
 
 
-def _write_partial_stub_marker(stub_file: Path) -> None:
-    for parent in stub_file.parents:
-        if parent.name.endswith("-stubs"):
-            parent.mkdir(parents=True, exist_ok=True)
-            parent.joinpath("py.typed").write_text("partial\n", encoding="utf-8")
-            return
+def _write_package_stub_init(stub_file: Path) -> None:
+    stub_file.parent.joinpath("__init__.pyi").write_text("", encoding="utf-8")
+
+
+def _write_auxiliary_package_stubs(module: ModuleType, target_path: Path) -> None:
+    module_file = _module_file(module)
+    if module_file is None:
+        return
+    module_name = module.__name__.rsplit(".", maxsplit=1)[-1]
+    for source_file in module_file.parent.glob("*.py"):
+        if source_file.stem in {"__init__", module_name}:
+            continue
+        stub_file = target_path.parent / source_file.with_suffix(".pyi").name
+        if not stub_file.exists():
+            stub_file.write_text(_render_auxiliary_module_stub(source_file), encoding="utf-8")
+
+
+def _render_auxiliary_module_stub(source_file: Path) -> str:
+    tree = ast.parse(source_file.read_text(encoding="utf-8"))
+    body: list[str] = []
+    for node in tree.body:
+        if isinstance(node, ast.ClassDef):
+            body.extend(_render_auxiliary_class(node))
+        elif isinstance(node, ast.FunctionDef):
+            body.append(_render_function(node))
+        elif isinstance(node, ast.Assign):
+            body.extend(_render_auxiliary_assignments(node))
+
+    imports = ["from __future__ import annotations", "", "from typing import Any", ""]
+    return "\n".join(imports + body).rstrip() + "\n"
+
+
+def _render_auxiliary_class(node: ast.ClassDef) -> list[str]:
+    members = [*_render_auxiliary_class_assignments(node), *_render_methods(node)]
+    lines = [f"class {node.name}(object):"]
+    lines.extend(_indent_lines(members) or ["    ..."])
+    lines.append("")
+    return lines
+
+
+def _render_auxiliary_class_assignments(node: ast.ClassDef) -> list[str]:
+    members: list[str] = []
+    for child in node.body:
+        if isinstance(child, ast.Assign):
+            members.extend(_render_auxiliary_assignments(child))
+    return members
+
+
+def _render_auxiliary_assignments(node: ast.Assign) -> list[str]:
+    members: list[str] = []
+    for target in node.targets:
+        if isinstance(target, ast.Name) and (target.id.isupper() or target.id[:1].isupper()):
+            members.append(f"{target.id}: Any")
+    return members
 
 
 def _inject_class_members(
