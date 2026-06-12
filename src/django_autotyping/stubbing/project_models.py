@@ -270,7 +270,7 @@ def _render_plain_class(node: ast.ClassDef, module: ModuleType) -> list[str]:
         members = _choice_members(node)
     elif inspect.isclass(value) and issubclass(value, models.IntegerChoices):
         base = "models.IntegerChoices"
-        members = _choice_members(node, annotation="int")
+        members = _choice_members(node)
     elif inspect.isclass(value) and issubclass(value, models.Manager):
         base = "models.Manager[Any]"
         members = _render_methods(node)
@@ -287,29 +287,30 @@ def _render_plain_class(node: ast.ClassDef, module: ModuleType) -> list[str]:
 def _render_inner_classes(node: ast.ClassDef) -> list[str]:
     rendered: list[str] = []
     for child in node.body:
-        if isinstance(child, ast.ClassDef) and child.name != "Meta":
-            if _class_uses_base(child, "TextChoices"):
-                rendered.extend(
-                    [f"class {child.name}(models.TextChoices):", *_indent_lines(_choice_members(child)), ""]
-                )
-            elif _class_uses_base(child, "IntegerChoices"):
-                rendered.extend(
-                    [
-                        f"class {child.name}(models.IntegerChoices):",
-                        *_indent_lines(_choice_members(child, annotation="int")),
-                        "",
-                    ]
-                )
+        if not isinstance(child, ast.ClassDef):
+            continue
+        if child.name == "Meta":
+            rendered.extend(["class Meta:", "    ...", ""])
+        elif _class_uses_base(child, "TextChoices"):
+            rendered.extend([f"class {child.name}(models.TextChoices):", *_indent_lines(_choice_members(child)), ""])
+        elif _class_uses_base(child, "IntegerChoices"):
+            rendered.extend(
+                [
+                    f"class {child.name}(models.IntegerChoices):",
+                    *_indent_lines(_choice_members(child)),
+                    "",
+                ]
+            )
     return rendered
 
 
-def _choice_members(node: ast.ClassDef, *, annotation: str = "str") -> list[str]:
+def _choice_members(node: ast.ClassDef) -> list[str]:
     members: list[str] = []
     for child in node.body:
         if isinstance(child, ast.Assign):
             for target in child.targets:
                 if isinstance(target, ast.Name):
-                    members.append(f"{target.id}: {annotation}")
+                    members.append(f"{target.id}: {node.name}")
     return members or ["..."]
 
 
@@ -321,15 +322,15 @@ def _render_methods(node: ast.ClassDef) -> list[str]:
         if child.name == "__init__":
             continue
         if _has_decorator(child, "property"):
-            members.append(f"{child.name}: {_annotation_to_string(child.returns)}")
+            members.append(f"{child.name}: Any")
             continue
-        return_type = "str" if child.name == "__str__" else _annotation_to_string(child.returns)
+        return_type = "str" if child.name == "__str__" else "Any"
         members.append(f"def {child.name}(self, *args: Any, **kwargs: Any) -> {return_type}: ...")
     return members
 
 
 def _render_function(node: ast.FunctionDef) -> str:
-    return f"def {node.name}(*args: Any, **kwargs: Any) -> {_annotation_to_string(node.returns)}: ..."
+    return f"def {node.name}(*args: Any, **kwargs: Any) -> Any: ..."
 
 
 def _render_assignments(node: ast.Assign, module: ModuleType) -> list[str]:
