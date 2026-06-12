@@ -150,10 +150,18 @@ class ReverseOverloadCodemod(StubVisitorBasedCodemod):
 
                         InsertAfterImportsVisitor.insert_after_imports(self.context, [typed_dict])
 
+                kwargs_can_be_omitted = _kwargs_can_be_omitted(path_info)
+                if kwargs_can_be_omitted and kwargs_param.default is None:
+                    kwargs_default = cst.Ellipsis()
+                    kwargs_equal = cst.AssignEqual()
+                else:
+                    kwargs_default = kwargs_param.default if kwargs_can_be_omitted else None
+                    kwargs_equal = kwargs_param.equal if kwargs_can_be_omitted else cst.MaybeSentinel.DEFAULT
+
                 kwargs_param = kwargs_param.with_changes(
                     annotation=cst.Annotation(annotation),
-                    default=None if not use_args else kwargs_param.default,
-                    equal=cst.MaybeSentinel.DEFAULT if not use_args else kwargs_param.equal,
+                    default=kwargs_default if not use_args else kwargs_param.default,
+                    equal=kwargs_equal if not use_args else kwargs_param.equal,
                 )
 
                 # Finally, add a `ParamStar` after `urlconf`, to have valid signatures.
@@ -176,3 +184,10 @@ class ReverseOverloadCodemod(StubVisitorBasedCodemod):
         )
 
         return cst.FlattenSentinel([*overloads, overload])
+
+
+def _kwargs_can_be_omitted(path_info: PathInfo) -> bool:
+    return any(
+        not path_args or all(not required for _, required in path_args.arguments)
+        for path_args in path_info.arguments_set
+    )

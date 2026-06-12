@@ -28,6 +28,7 @@ testfiles_params = pytest.mark.parametrize(
         ("djas002_003_no_model_fields_optional.py", ["DJAS002", "DJAS003"], StubsGenerationSettings(MODEL_FIELDS_OPTIONAL=False)),
         ("djas010.py", ["DJAS010"], StubsGenerationSettings()),
         ("djas011.py", ["DJAS011"], StubsGenerationSettings()),
+        ("djas015.py", ["DJAS015"], StubsGenerationSettings()),
         ("djas016.py", ["DJAS016"], StubsGenerationSettings()),
         ("djas017.py", ["DJAS017"], StubsGenerationSettings()),
     ],
