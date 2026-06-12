@@ -10,7 +10,7 @@ from django.core.management.base import BaseCommand, CommandParser
 
 from django_autotyping._compat import Unpack
 from django_autotyping.app_settings import AutotypingSettings
-from django_autotyping.stubbing import create_local_django_stubs, run_codemods
+from django_autotyping.stubbing import create_local_django_stubs, create_project_model_stubs, run_codemods
 from django_autotyping.stubbing.codemods import RulesT, gather_codemods, rules
 from django_autotyping.stubbing.django_context import DjangoStubbingContext
 
@@ -53,3 +53,4 @@ class Command(BaseCommand):
 
         django_context = DjangoStubbingContext(apps, settings)
         run_codemods(codemods, django_context, resolved_stubs_settings)
+        create_project_model_stubs(django_context, resolved_stubs_settings)

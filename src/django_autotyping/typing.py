@@ -54,6 +54,12 @@ class StubsGenerationSettingsDict(TypedDict, total=False):
     to the first entry in site packages.
     """
 
+    MODEL_STUBS_DIR: Path | None
+    """The directory where first-party model-module stubs should be written."""
+
+    MODEL_STUBS_SOURCE_DIR: Path | None
+    """The source root used to decide which model modules receive generated stubs."""
+
     ALLOW_PLAIN_MODEL_REFERENCES: bool
     """Whether string references in the form of `{model_name}` should be generated in overloads.
 

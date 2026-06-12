@@ -11,7 +11,7 @@ from mypy.api import run as run_mypy
 from pyright import main as run_pyright
 
 from django_autotyping.app_settings import StubsGenerationSettings
-from django_autotyping.stubbing import create_local_django_stubs, run_codemods
+from django_autotyping.stubbing import create_local_django_stubs, create_project_model_stubs, run_codemods
 from django_autotyping.stubbing.codemods import gather_codemods
 
 TESTFILES = Path(__file__).parent / "testfiles"
@@ -50,6 +50,26 @@ def test_model_init_kwargs_are_generated_once(local_stubs, stubstestproj_context
     base_stubs = local_stubs / "django-stubs" / "db" / "models" / "base.pyi"
 
     assert base_stubs.read_text().count("class ModelOneInitKwargs(TypedDict, total=False):") == 1
+
+
+def test_project_model_stubs_include_dynamic_model_attrs(tmp_path, stubstestproj_context):
+    stubs_settings = StubsGenerationSettings(MODEL_STUBS_DIR=tmp_path, MODEL_STUBS_SOURCE_DIR=STUBSTESTPROJ)
+
+    create_project_model_stubs(stubstestproj_context, stubs_settings)
+
+    firstapp_models = tmp_path / "firstapp" / "models.pyi"
+    secondapp_models = tmp_path / "secondapp" / "models.pyi"
+
+    assert firstapp_models.exists()
+    assert secondapp_models.exists()
+
+    firstapp = firstapp_models.read_text()
+    secondapp = secondapp_models.read_text()
+
+    assert "model_two: _model_" in firstapp
+    assert "model_two_id: int" in firstapp
+    assert "many_to_many_model_two: ManyToManyRelatedManager[" in firstapp
+    assert "modelone_set: RelatedManager[" in secondapp
 
 
 @pytest.mark.xfail(reason="mypy does not support setting the MYPYPATH without specifying a module or package to test.")

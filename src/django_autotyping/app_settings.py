@@ -43,6 +43,20 @@ class StubsGenerationSettings:
     to the first entry in site packages.
     """
 
+    MODEL_STUBS_DIR: Path | None = None
+    """The directory where first-party model-module stubs should be written.
+
+    If this is the project root, stubs are written next to the corresponding
+    ``models.py`` files, which lets type checkers use them for first-party
+    module resolution.
+    """
+
+    MODEL_STUBS_SOURCE_DIR: Path | None = None
+    """The source root used to decide which model modules receive generated stubs.
+
+    If unset, ``MODEL_STUBS_DIR`` is also used as the source root.
+    """
+
     ALLOW_PLAIN_MODEL_REFERENCES: bool = True
     """Whether string references in the form of `{model_name}` should be generated in overloads.
 

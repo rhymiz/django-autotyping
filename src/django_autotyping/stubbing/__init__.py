@@ -13,6 +13,7 @@ from django_autotyping.app_settings import StubsGenerationSettings
 
 from .codemods import StubVisitorBasedCodemod
 from .django_context import DjangoStubbingContext
+from .project_models import create_project_model_stubs as create_project_model_stubs
 
 
 def run_codemods(
