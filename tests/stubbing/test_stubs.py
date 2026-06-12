@@ -203,7 +203,7 @@ def test_project_model_stubs_include_dynamic_model_attrs(tmp_path, local_stubs, 
     assert "many_to_many_model_two: ManyToManyRelatedManager[" in firstapp
     assert "def default_zone(*args: Any, **kwargs: Any) -> Any: ..." in firstapp
     assert "class Meta:" in firstapp
-    assert "DRAFT: models.TextChoices" in firstapp
+    assert "DRAFT: Status" in firstapp
     assert "tzinfo: Any" in firstapp
     assert "def related_zone(self, *args: Any, **kwargs: Any) -> Any: ..." in firstapp
     assert "ZoneInfo" not in firstapp

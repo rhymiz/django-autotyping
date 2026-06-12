@@ -684,10 +684,10 @@ def _render_plain_class(node: ast.ClassDef, module: ModuleType) -> list[str]:
     value = getattr(module, node.name, None)
     if inspect.isclass(value) and issubclass(value, models.TextChoices):
         base = "models.TextChoices"
-        members = _choice_members(node, annotation="models.TextChoices")
+        members = _choice_members(node, annotation=node.name)
     elif inspect.isclass(value) and issubclass(value, models.IntegerChoices):
         base = "models.IntegerChoices"
-        members = _choice_members(node, annotation="models.IntegerChoices")
+        members = _choice_members(node, annotation=node.name)
     elif inspect.isclass(value) and issubclass(value, models.Manager):
         base = "models.Manager[Any]"
         members = _render_methods(node)
@@ -712,7 +712,7 @@ def _render_inner_classes(node: ast.ClassDef) -> list[str]:
             rendered.extend(
                 [
                     f"class {child.name}(models.TextChoices):",
-                    *_indent_lines(_choice_members(child, annotation="models.TextChoices")),
+                    *_indent_lines(_choice_members(child, annotation=child.name)),
                     "",
                 ]
             )
@@ -720,7 +720,7 @@ def _render_inner_classes(node: ast.ClassDef) -> list[str]:
             rendered.extend(
                 [
                     f"class {child.name}(models.IntegerChoices):",
-                    *_indent_lines(_choice_members(child, annotation="models.IntegerChoices")),
+                    *_indent_lines(_choice_members(child, annotation=child.name)),
                     "",
                 ]
             )
