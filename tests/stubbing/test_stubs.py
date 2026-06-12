@@ -84,6 +84,27 @@ def test_drf_test_client_stub_is_opt_in(local_stubs, stubstestproj_context):
     assert "client: APIClient" in generated
 
 
+def test_context_list_supports_string_lookup(local_stubs, stubstestproj_context):
+    stubs_settings = StubsGenerationSettings(LOCAL_STUBS_DIR=local_stubs)
+
+    codemods = gather_codemods(include=["DJAS019"])
+    run_codemods(codemods, stubstestproj_context, stubs_settings)
+
+    utils_stubs = local_stubs / "django-stubs" / "test" / "utils.pyi"
+    generated = utils_stubs.read_text()
+
+    upstream_fixed_getitem = "def __getitem__(self, key: str | SupportsIndex | slice) -> Any: ..." in generated
+    generated_getitem_overloads = all(
+        overload in generated
+        for overload in [
+            "def __getitem__(self, key: str) -> _T: ...",
+            "def __getitem__(self, key: int) -> Mapping[str, _T]: ...",
+            "def __getitem__(self, key: slice) -> list[Mapping[str, _T]]: ...",
+        ]
+    )
+    assert upstream_fixed_getitem or generated_getitem_overloads
+
+
 def test_project_model_stubs_include_dynamic_model_attrs(tmp_path, local_stubs, stubstestproj_context):
     stubs_settings = StubsGenerationSettings(
         LOCAL_STUBS_DIR=local_stubs,
