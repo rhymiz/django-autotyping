@@ -508,6 +508,15 @@ def _render_model_manager_attr_overloads(model_manager_attr_types: dict[str, set
                 ),
             ]
         )
+    lines.extend(
+        [
+            "    @overload",
+            (
+                '    def __getattr__(cls: type[Model], name: Literal["_base_manager", "_default_manager", "objects"]) '
+                "-> BaseManager[Model]: ..."
+            ),
+        ]
+    )
     lines.append(MODEL_MANAGER_ATTRS_END)
     return lines
 
