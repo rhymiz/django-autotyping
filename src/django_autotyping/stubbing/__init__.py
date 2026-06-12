@@ -97,6 +97,11 @@ def create_local_rest_framework_stubs(stubs_dir: Path) -> None:
     output_module = input_module.visit(_DRFResponseStubTransformer())
     response_stub.write_text(output_module.code, encoding="utf-8")
 
+    relations_stub = target_package / "relations.pyi"
+    input_module = cst.parse_module(relations_stub.read_text(encoding="utf-8"))
+    output_module = input_module.visit(_DRFRelationsStubTransformer())
+    relations_stub.write_text(output_module.code, encoding="utf-8")
+
 
 class _DRFResponseStubTransformer(cst.CSTTransformer):
     def leave_ClassDef(self, original_node: cst.ClassDef, updated_node: cst.ClassDef) -> cst.ClassDef:
@@ -117,3 +122,52 @@ class _DRFResponseStubTransformer(cst.CSTTransformer):
                 ],
             ),
         )
+
+
+class _DRFRelationsStubTransformer(cst.CSTTransformer):
+    def leave_ImportFrom(self, original_node: cst.ImportFrom, updated_node: cst.ImportFrom) -> cst.ImportFrom:
+        if not m.matches(original_node.module, m.Name("typing")):
+            return updated_node
+        existing_names = {
+            alias.name.value
+            for alias in updated_node.names
+            if isinstance(alias, cst.ImportAlias) and isinstance(alias.name, cst.Name)
+        }
+        needed_aliases = [
+            cst.ImportAlias(name=cst.Name(name))
+            for name in ("Literal", "overload")
+            if name not in existing_names
+        ]
+        if not needed_aliases or not isinstance(updated_node.names, tuple):
+            return updated_node
+        return updated_node.with_changes(names=(*updated_node.names, *needed_aliases))
+
+    def leave_ClassDef(self, original_node: cst.ClassDef, updated_node: cst.ClassDef) -> cst.ClassDef:
+        if original_node.name.value != "RelatedField":
+            return updated_node
+
+        body: list[cst.BaseStatement] = []
+        for statement in updated_node.body.body:
+            if m.matches(statement, m.FunctionDef(name=m.Name("__new__"))):
+                body.extend(
+                    [
+                        cst.parse_statement(
+                            "@overload\n"
+                            "def __new__(cls, *args: Any, many: Literal[True], **kwargs: Any) "
+                            "-> ManyRelatedField: ...\n"
+                        ),
+                        cst.parse_statement(
+                            "@overload\n"
+                            "def __new__(cls, *args: Any, many: Literal[False] = ..., **kwargs: Any) -> Self: ...\n"
+                        ),
+                        cst.parse_statement(
+                            "@overload\n"
+                            "def __new__(cls, *args: Any, many: bool, **kwargs: Any) "
+                            "-> Self | ManyRelatedField: ...\n"
+                        ),
+                    ]
+                )
+                continue
+            body.append(statement)
+
+        return updated_node.with_changes(body=updated_node.body.with_changes(body=body))

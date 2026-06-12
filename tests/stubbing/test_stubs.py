@@ -150,10 +150,16 @@ def test_rest_framework_response_overlay_adds_redirect_url(tmp_path):
     create_local_rest_framework_stubs(tmp_path)
 
     response_stubs = tmp_path / "rest_framework-stubs" / "response.pyi"
+    relations_stubs = tmp_path / "rest_framework-stubs" / "relations.pyi"
     generated = response_stubs.read_text()
+    generated_relations = relations_stubs.read_text()
 
     assert (tmp_path / "rest_framework-stubs" / "__init__.pyi").exists()
     assert "class _MonkeyPatchedResponse(Response):\n    url: str" in generated
+    assert "from typing import Any, TypeVar, Literal, overload" in generated_relations
+    assert "many: Literal[True]" in generated_relations
+    assert "many: Literal[False] = ..." in generated_relations
+    assert "-> Self | ManyRelatedField" in generated_relations
 
 
 def test_project_model_stubs_include_dynamic_model_attrs(tmp_path, local_stubs, stubstestproj_context):
