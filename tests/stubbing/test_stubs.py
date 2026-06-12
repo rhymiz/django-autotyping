@@ -22,6 +22,7 @@ from django_autotyping.stubbing.codemods import gather_codemods
 
 TESTFILES = Path(__file__).parent / "testfiles"
 STUBSTESTPROJ = Path(__file__).parents[1].joinpath("stubstestproj").absolute()
+RELATED_FIELD_STRING_OVERLOAD_BLOCKS = 3
 
 # fmt: off
 testfiles_params = pytest.mark.parametrize(
@@ -263,11 +264,17 @@ def test_project_model_relationship_stubs_do_not_require_adjacent_model_stubs(tm
 
     base = (local_stubs / "django-stubs" / "db" / "models" / "base.pyi").read_text()
     auth = (local_stubs / "django-stubs" / "contrib" / "auth" / "models.pyi").read_text()
+    related_fields = local_stubs / "django-stubs" / "db" / "models" / "fields" / "related.pyi"
+    related = related_fields.read_text()
 
     assert "# django-autotyping project model attrs start" in base
     assert "# django-autotyping project model managers start" in base
+    assert "# django-autotyping project string model overloads start" in related
     assert "def __getattr__(self: ModelOne, name: Literal[" in base
     assert "def __getattr__(cls: type[ModelOne], name: Literal[" in base
+    assert 'to: Literal["secondapp.ModelTwo"]' in related
+    assert "-> ForeignKey[ModelTwo]: ..." in related
+    assert related.count("# django-autotyping project string model overloads start") == RELATED_FIELD_STRING_OVERLOAD_BLOCKS
     assert '"model_two_id"' in base
     assert any(
         "self: ModelOne" in line and '"model_two"' in line and "-> ModelTwo" in line for line in base.splitlines()

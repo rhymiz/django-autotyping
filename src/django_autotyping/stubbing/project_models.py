@@ -56,12 +56,15 @@ def create_project_model_stubs(
 
     _augment_external_model_stubs(django_context, stubs_settings, source_root)
     _augment_model_base_dynamic_attrs(django_context, stubs_settings)
+    _augment_related_field_string_overloads(django_context, stubs_settings)
 
 
 MODEL_DYNAMIC_ATTRS_START = "    # django-autotyping project model attrs start"
 MODEL_DYNAMIC_ATTRS_END = "    # django-autotyping project model attrs end"
 MODEL_MANAGER_ATTRS_START = "    # django-autotyping project model managers start"
 MODEL_MANAGER_ATTRS_END = "    # django-autotyping project model managers end"
+RELATED_FIELD_STRING_OVERLOADS_START = "    # django-autotyping project string model overloads start"
+RELATED_FIELD_STRING_OVERLOADS_END = "    # django-autotyping project string model overloads end"
 
 
 def _group_project_models(
@@ -237,12 +240,57 @@ def _augment_model_base_dynamic_attrs(
     target_path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
 
 
+def _augment_related_field_string_overloads(
+    django_context: DjangoStubbingContext,
+    stubs_settings: StubsGenerationSettings,
+) -> None:
+    local_stubs_dir = stubs_settings.LOCAL_STUBS_DIR
+    if local_stubs_dir is None:
+        return
+
+    target_path = local_stubs_dir / "django-stubs" / "db" / "models" / "fields" / "related.pyi"
+    if not target_path.exists():
+        return
+
+    model_refs = _model_string_refs(django_context)
+    if not model_refs:
+        return
+
+    lines = _remove_generated_related_field_string_overloads(target_path.read_text(encoding="utf-8").splitlines())
+    lines = _inject_imports(lines, _model_imports(django_context))
+    lines = _ensure_typing_imports(lines, ["Literal", "overload"])
+    _insert_related_field_string_overloads(
+        lines,
+        "ForeignKey",
+        _render_foreign_key_string_overloads("ForeignKey", model_refs),
+    )
+    _insert_related_field_string_overloads(
+        lines,
+        "OneToOneField",
+        _render_foreign_key_string_overloads("OneToOneField", model_refs),
+    )
+    _insert_related_field_string_overloads(lines, "ManyToManyField", _render_many_to_many_string_overloads(model_refs))
+    target_path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+
+
 def _model_imports(django_context: DjangoStubbingContext) -> list[str]:
     imports: list[str] = []
     for item in django_context.model_imports:
         imported = item.obj_name if item.alias is None else f"{item.obj_name} as {item.alias}"
         imports.append(f"from {item.module_name} import {imported}")
     return imports
+
+
+def _model_string_refs(django_context: DjangoStubbingContext) -> dict[str, str]:
+    refs: dict[str, str] = {}
+    for model in django_context.models:
+        model_name = django_context.get_model_name(model)
+        labels = {model._meta.label, model._meta.label_lower}
+        if not django_context.is_duplicate(model):
+            labels.add(model.__name__)
+        for label in labels:
+            refs[label] = model_name
+    return refs
 
 
 def _collect_model_dynamic_attr_types(django_context: DjangoStubbingContext) -> dict[str, dict[str, set[str]]]:
@@ -356,6 +404,17 @@ def _remove_generated_model_manager_attrs(lines: list[str]) -> list[str]:
     return lines
 
 
+def _remove_generated_related_field_string_overloads(lines: list[str]) -> list[str]:
+    while RELATED_FIELD_STRING_OVERLOADS_START in lines:
+        start = lines.index(RELATED_FIELD_STRING_OVERLOADS_START)
+        try:
+            end = lines.index(RELATED_FIELD_STRING_OVERLOADS_END, start)
+        except ValueError:
+            break
+        del lines[start : end + 1]
+    return lines
+
+
 def _remove_generic_model_manager_attrs(lines: list[str]) -> list[str]:
     generic_attrs = {
         "    _base_manager: ClassVar[BaseManager[Self]]",
@@ -451,6 +510,64 @@ def _render_model_manager_attr_overloads(model_manager_attr_types: dict[str, set
         )
     lines.append(MODEL_MANAGER_ATTRS_END)
     return lines
+
+
+def _render_foreign_key_string_overloads(class_name: str, model_refs: dict[str, str]) -> list[str]:
+    lines = [RELATED_FIELD_STRING_OVERLOADS_START]
+    for label, model_name in sorted(model_refs.items()):
+        lines.extend(
+            [
+                "    @overload",
+                (
+                    f'    def __new__(cls, to: Literal["{label}"], on_delete: _OnDeleteOptions, '
+                    f"*args: Any, null: Literal[False] = False, **kwargs: Any) -> {class_name}[{model_name}]: ..."
+                ),
+                "    @overload",
+                (
+                    f'    def __new__(cls, to: Literal["{label}"], on_delete: _OnDeleteOptions, '
+                    f"*args: Any, null: Literal[True], **kwargs: Any) -> {class_name}[{model_name} | None]: ..."
+                ),
+            ]
+        )
+    lines.append(RELATED_FIELD_STRING_OVERLOADS_END)
+    return lines
+
+
+def _render_many_to_many_string_overloads(model_refs: dict[str, str]) -> list[str]:
+    lines = [RELATED_FIELD_STRING_OVERLOADS_START]
+    for label, model_name in sorted(model_refs.items()):
+        lines.extend(
+            [
+                "    @overload",
+                (
+                    f'    def __new__(cls, to: Literal["{label}"], through: type[_MN] | str = ..., '
+                    f"*args: Any, **kwargs: Any) -> ManyToManyField[{model_name}, _MN]: ..."
+                ),
+                "    @overload",
+                (
+                    f'    def __new__(cls, to: type[_MM] | str, through: Literal["{label}"], '
+                    f"*args: Any, **kwargs: Any) -> ManyToManyField[_MM, {model_name}]: ..."
+                ),
+            ]
+        )
+    lines.append(RELATED_FIELD_STRING_OVERLOADS_END)
+    return lines
+
+
+def _insert_related_field_string_overloads(lines: list[str], class_name: str, overload_lines: list[str]) -> None:
+    in_class = False
+    for index, line in enumerate(lines):
+        if line.startswith(f"class {class_name}("):
+            in_class = True
+            continue
+        if not in_class:
+            continue
+        if line.startswith("class "):
+            break
+        if line == "    @overload" or line.startswith("    def __init__("):
+            lines[index:index] = overload_lines
+            return
+    raise RuntimeError(f"Could not find django-stubs {class_name}.__new__ overloads.")
 
 
 def _render_dynamic_attr_overloads_for_self(self_type: str, attr_types: dict[str, set[str]]) -> list[str]:
