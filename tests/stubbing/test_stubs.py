@@ -189,6 +189,9 @@ def test_project_model_stubs_include_dynamic_model_attrs(tmp_path, local_stubs, 
     assert "modelone_set: RelatedManager[" in secondapp
     assert "class Group(models.Model):\n    generic_targets: RelatedManager[" in auth
     assert "# django-autotyping project model attrs start" in base
+    assert "from stubstestproj.firstapp.models import ModelOne" in base
+    assert "def __getattr__(self: ModelOne, name: Literal[" in base
+    assert "def __getattr__(self: Model, name: Literal[" in base
     assert '"model_two_id"' in base
     assert '"model_two_nullable_id"' in base
     assert '"modelone_set"' in base

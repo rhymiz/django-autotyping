@@ -208,24 +208,39 @@ def _augment_model_base_dynamic_attrs(
     if not target_path.exists():
         return
 
-    attr_types = _collect_model_dynamic_attr_types(django_context)
-    if not attr_types:
+    model_attr_types = _collect_model_dynamic_attr_types(django_context)
+    if not model_attr_types:
         return
 
     lines = _remove_generated_model_dynamic_attrs(target_path.read_text(encoding="utf-8").splitlines())
-    lines = _inject_imports(lines, _model_dynamic_attr_imports(attr_types))
+    lines = _inject_imports(
+        lines,
+        [
+            *_model_imports(django_context),
+            *_model_dynamic_attr_imports(model_attr_types),
+        ],
+    )
     lines = _ensure_typing_imports(lines, ["Literal", "overload"])
     insert_at = _model_dynamic_attr_insert_index(lines)
-    lines[insert_at:insert_at] = _render_model_dynamic_attr_overloads(attr_types)
+    lines[insert_at:insert_at] = _render_model_dynamic_attr_overloads(model_attr_types)
     target_path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
 
 
-def _collect_model_dynamic_attr_types(django_context: DjangoStubbingContext) -> dict[str, set[str]]:
-    attr_types: dict[str, set[str]] = defaultdict(set)
+def _model_imports(django_context: DjangoStubbingContext) -> list[str]:
+    imports: list[str] = []
+    for item in django_context.model_imports:
+        imported = item.obj_name if item.alias is None else f"{item.obj_name} as {item.alias}"
+        imports.append(f"from {item.module_name} import {imported}")
+    return imports
+
+
+def _collect_model_dynamic_attr_types(django_context: DjangoStubbingContext) -> dict[str, dict[str, set[str]]]:
+    model_attr_types: dict[str, dict[str, set[str]]] = {}
     for model in django_context.models:
         module = inspect.getmodule(model)
         if module is None:
             continue
+        attr_types: dict[str, set[str]] = defaultdict(set)
         planner = ImportPlanner()
         for field in model._meta.fields:
             if isinstance(field.remote_field, ForeignObjectRel) and not isinstance(field.remote_field.model, str):
@@ -255,7 +270,8 @@ def _collect_model_dynamic_attr_types(django_context: DjangoStubbingContext) -> 
                 attr_types[accessor_name].add("ManyToManyRelatedManager[Any, Any]")
             else:
                 attr_types[accessor_name].add("RelatedManager[Any]")
-    return attr_types
+        model_attr_types[django_context.get_model_name(model)] = attr_types
+    return model_attr_types
 
 
 def _remove_generated_model_dynamic_attrs(lines: list[str]) -> list[str]:
@@ -269,8 +285,13 @@ def _remove_generated_model_dynamic_attrs(lines: list[str]) -> list[str]:
     return lines
 
 
-def _model_dynamic_attr_imports(attr_types: dict[str, set[str]]) -> list[str]:
-    annotations = {annotation for annotations in attr_types.values() for annotation in annotations}
+def _model_dynamic_attr_imports(model_attr_types: dict[str, dict[str, set[str]]]) -> list[str]:
+    annotations = {
+        annotation
+        for attr_types in model_attr_types.values()
+        for attr_annotations in attr_types.values()
+        for annotation in attr_annotations
+    }
     imports: list[str] = []
     if any("datetime." in annotation for annotation in annotations):
         imports.append("import datetime")
@@ -311,29 +332,50 @@ def _model_dynamic_attr_insert_index(lines: list[str]) -> int:
     raise RuntimeError("Could not find django-stubs Model class for project dynamic attributes.")
 
 
-def _render_model_dynamic_attr_overloads(attr_types: dict[str, set[str]]) -> list[str]:
+def _render_model_dynamic_attr_overloads(model_attr_types: dict[str, dict[str, set[str]]]) -> list[str]:
+    lines = [MODEL_DYNAMIC_ATTRS_START]
+    for model_name in sorted(model_attr_types):
+        lines.extend(_render_dynamic_attr_overloads_for_self(model_name, model_attr_types[model_name]))
+    lines.extend(_render_dynamic_attr_overloads_for_self("Model", _global_model_dynamic_attr_types(model_attr_types)))
+    lines.append(MODEL_DYNAMIC_ATTRS_END)
+    return lines
+
+
+def _render_dynamic_attr_overloads_for_self(self_type: str, attr_types: dict[str, set[str]]) -> list[str]:
     by_annotation: dict[str, list[str]] = defaultdict(list)
     for name, attr_annotations in attr_types.items():
         annotation = _collapse_annotations(attr_annotations)
         by_annotation[annotation].append(name)
 
-    lines = [MODEL_DYNAMIC_ATTRS_START]
+    lines: list[str] = []
     for annotation in sorted(by_annotation):
         names = ", ".join(f'"{name}"' for name in sorted(by_annotation[annotation]))
         lines.extend(
             [
                 "    @overload",
-                f"    def __getattr__(self, name: Literal[{names}]) -> {annotation}: ...",
+                f"    def __getattr__(self: {self_type}, name: Literal[{names}]) -> {annotation}: ...",
             ]
         )
-    lines.append(MODEL_DYNAMIC_ATTRS_END)
     return lines
+
+
+def _global_model_dynamic_attr_types(model_attr_types: dict[str, dict[str, set[str]]]) -> dict[str, set[str]]:
+    attr_types: dict[str, set[str]] = defaultdict(set)
+    for model_attrs in model_attr_types.values():
+        for name, attr_annotations in model_attrs.items():
+            attr_types[name].update(attr_annotations)
+    return attr_types
 
 
 def _collapse_annotations(annotations: set[str]) -> str:
     if "Any" in annotations:
         return "Any"
-    return " | ".join(sorted(annotations))
+    union_members = {member.strip() for annotation in annotations for member in annotation.split("|")}
+    return " | ".join(sorted(union_members, key=_annotation_sort_key))
+
+
+def _annotation_sort_key(annotation: str) -> tuple[bool, str]:
+    return (annotation == "None", annotation)
 
 
 def _group_external_models(
