@@ -64,7 +64,24 @@ def test_reverse_overloads_preserve_dynamic_str_fallback(local_stubs, stubstestp
 
     assert "viewname: Callable[..., HttpResponseBase] | str | None," in generated
     assert 'viewname: Literal["item-detail"],' in generated
-    assert "kwargs: _24DFE8Kwargs | _2AD99CKwargs," in generated
+    assert (
+        "kwargs: _24DFE8Kwargs | _2AD99CKwargs," in generated
+        or "kwargs: _2AD99CKwargs | _24DFE8Kwargs," in generated
+    )
+
+
+def test_drf_test_client_stub_is_opt_in(local_stubs, stubstestproj_context):
+    stubs_settings = StubsGenerationSettings(LOCAL_STUBS_DIR=local_stubs, DRF_TEST_CLIENT=True)
+
+    codemods = gather_codemods(include=["DJAS018"])
+    run_codemods(codemods, stubstestproj_context, stubs_settings)
+
+    testcases_stubs = local_stubs / "django-stubs" / "test" / "testcases.pyi"
+    generated = testcases_stubs.read_text()
+
+    assert "from rest_framework.test import APIClient" in generated
+    assert "client_class: type[APIClient]" in generated
+    assert "client: APIClient" in generated
 
 
 def test_project_model_stubs_include_dynamic_model_attrs(tmp_path, local_stubs, stubstestproj_context):

@@ -112,6 +112,15 @@ class StubsGenerationSettings:
     Affected rules: `DJAS015`.
     """
 
+    DRF_TEST_CLIENT: bool = False
+    """Whether Django test cases should expose Django REST Framework's ``APIClient`` as ``self.client``.
+
+    This is useful for projects that use ``rest_framework.test.APIClient`` in Django ``TestCase`` classes,
+    because Django's base stubs otherwise type ``self.client`` as ``django.test.Client``.
+
+    Affected rules: `DJAS018`.
+    """
+
 
 @dataclass
 class AutotypingSettings:
