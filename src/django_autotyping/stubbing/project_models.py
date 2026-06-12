@@ -564,7 +564,7 @@ def _insert_related_field_string_overloads(lines: list[str], class_name: str, ov
             continue
         if line.startswith("class "):
             break
-        if line == "    @overload" or line.startswith("    def __init__("):
+        if line == "    @overload" or line.startswith(("    def __init__(", "    def __new__(")):
             lines[index:index] = overload_lines
             return
     raise RuntimeError(f"Could not find django-stubs {class_name}.__new__ overloads.")
