@@ -1202,7 +1202,7 @@ def _reverse_relation_type(
 
 
 def _many_to_many_manager_type(
-    through_model: ModelType,
+    through_model: ModelType | None,
     related_model: ModelType | str,
     module: ModuleType,
     planner: ImportPlanner,
@@ -1210,7 +1210,7 @@ def _many_to_many_manager_type(
     related_annotation = (
         "Any" if isinstance(related_model, str) else planner.annotation_for_model(related_model, module)
     )
-    through_annotation = planner.annotation_for_model(through_model, module)
+    through_annotation = "Any" if through_model is None else planner.annotation_for_model(through_model, module)
     return f"ManyToManyRelatedManager[{related_annotation}, {through_annotation}]"
 
 

@@ -16,6 +16,24 @@ from .codemods import StubVisitorBasedCodemod
 from .django_context import DjangoStubbingContext
 from .project_models import create_project_model_stubs as create_project_model_stubs
 
+REQUIRED_DJANGO_STUB_FILES = frozenset(
+    {
+        "apps/registry.pyi",
+        "conf/__init__.pyi",
+        "contrib/auth/__init__.pyi",
+        "db/models/base.pyi",
+        "db/models/fields/related.pyi",
+        "db/models/manager.pyi",
+        "db/models/query.pyi",
+        "template/loader.pyi",
+        "test/testcases.pyi",
+        "test/utils.pyi",
+        "urls/base.pyi",
+        "views/generic/detail.pyi",
+        "views/generic/list.pyi",
+    }
+)
+
 
 def run_codemods(
     codemods: list[type[StubVisitorBasedCodemod]],
@@ -47,7 +65,7 @@ def _get_django_stubs_dir() -> Path:
         distribution = None
     if distribution is not None:
         candidate = Path(distribution.locate_file("django-stubs"))
-        if candidate.is_dir():
+        if _is_usable_django_stubs_dir(candidate):
             return candidate
 
     search_paths = [*site.getsitepackages(), site.getusersitepackages(), *sys.path]
@@ -55,8 +73,13 @@ def _get_django_stubs_dir() -> Path:
         if not path_entry:
             continue
         if (path := Path(path_entry, "django-stubs")).is_dir():
-            return path
-    raise RuntimeError("Couldn't find 'django-stubs' in any of the site packages.")
+            if _is_usable_django_stubs_dir(path):
+                return path
+    raise RuntimeError("Couldn't find a usable 'django-stubs' package in any of the site packages.")
+
+
+def _is_usable_django_stubs_dir(path: Path) -> bool:
+    return path.is_dir() and all((path / stub_file).is_file() for stub_file in REQUIRED_DJANGO_STUB_FILES)
 
 
 def create_local_django_stubs(stubs_dir: Path, source_django_stubs: Path | None = None) -> None:

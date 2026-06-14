@@ -8,7 +8,7 @@ from django.conf import settings
 
 from django_autotyping.app_settings import StubsGenerationSettings
 from django_autotyping.codemodding.codemods.base import BaseVisitorBasedCodemod
-from django_autotyping.stubbing import _get_django_stubs_dir
+from django_autotyping.stubbing import REQUIRED_DJANGO_STUB_FILES, _get_django_stubs_dir
 from django_autotyping.stubbing.codemods.base import StubVisitorBasedCodemod
 
 
@@ -30,11 +30,37 @@ def get_generate_stubs_module():
 def test_get_django_stubs_dir_uses_distribution_metadata(monkeypatch, tmp_path):
     django_stubs = tmp_path / "django-stubs"
     django_stubs.mkdir()
+    for stub_file in REQUIRED_DJANGO_STUB_FILES:
+        path = django_stubs / stub_file
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.touch()
 
     monkeypatch.setattr(
         "django_autotyping.stubbing.importlib.metadata.distribution",
         lambda name: Distribution(tmp_path),
     )
+
+    assert _get_django_stubs_dir() == django_stubs
+
+
+def test_get_django_stubs_dir_skips_incomplete_distribution_metadata(monkeypatch, tmp_path):
+    incomplete_root = tmp_path / "incomplete"
+    incomplete_root.joinpath("django-stubs").mkdir(parents=True)
+    fallback_root = tmp_path / "fallback"
+    django_stubs = fallback_root / "django-stubs"
+    django_stubs.mkdir(parents=True)
+    for stub_file in REQUIRED_DJANGO_STUB_FILES:
+        path = django_stubs / stub_file
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.touch()
+
+    monkeypatch.setattr(
+        "django_autotyping.stubbing.importlib.metadata.distribution",
+        lambda name: Distribution(incomplete_root),
+    )
+    monkeypatch.setattr("django_autotyping.stubbing.site.getsitepackages", lambda: [str(fallback_root)])
+    monkeypatch.setattr("django_autotyping.stubbing.site.getusersitepackages", lambda: str(tmp_path / "user"))
+    monkeypatch.setattr("django_autotyping.stubbing.sys.path", [])
 
     assert _get_django_stubs_dir() == django_stubs
 

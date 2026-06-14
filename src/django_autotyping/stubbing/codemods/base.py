@@ -6,7 +6,10 @@ from typing import TYPE_CHECKING, ClassVar, Sequence, TypeVar, cast
 import libcst as cst
 import libcst.matchers as m
 from libcst.codemod import CodemodContext, ContextAwareTransformer, VisitorBasedCodemodCommand
-from libcst.codemod.visitors import AddImportsVisitor
+from libcst.codemod.visitors import AddImportsVisitor, RemoveImportsVisitor
+from libcst.codemod.visitors._add_imports import _GatherTopImportsBeforeStatements
+from libcst.codemod.visitors._gather_imports import GatherImportsVisitor
+from libcst.codemod.visitors._remove_imports import RemovedNodeVisitor
 
 if TYPE_CHECKING:
     from django_autotyping.app_settings import StubsGenerationSettings
@@ -22,9 +25,20 @@ ModuleT = TypeVar("ModuleT", bound=cst.Module)
 IMPORT_MATCHER = m.SimpleStatementLine(body=[m.Import() | m.ImportFrom() | m.ImportAlias() | m.ImportStar()])
 """Matches the definition of an import statement."""
 
+for visitor_cls in (
+    AddImportsVisitor,
+    GatherImportsVisitor,
+    RemoveImportsVisitor,
+    _GatherTopImportsBeforeStatements,
+    RemovedNodeVisitor,
+):
+    visitor_cls.__provides__ = None
+
 
 class InsertAfterImportsVisitor(ContextAwareTransformer):
     """Insert a list of statements after imports."""
+
+    __provides__ = None
 
     CONTEXT_KEY = "InsertAfterImportsVisitor"
 
