@@ -41,6 +41,7 @@ def run_codemods(
     stubs_settings: StubsGenerationSettings,
 ) -> None:
     django_stubs_dir = stubs_settings.SOURCE_STUBS_DIR or _get_django_stubs_dir()
+    processed_stub_files: set[str] = set()
 
     for codemod in codemods:
         for stub_file in codemod.STUB_FILES:
@@ -49,13 +50,14 @@ def run_codemods(
             )
             transformer = codemod(context)
             target_file = stubs_settings.LOCAL_STUBS_DIR / "django-stubs" / stub_file
-            source_file = target_file if target_file.exists() else django_stubs_dir / stub_file
+            source_file = target_file if stub_file in processed_stub_files else django_stubs_dir / stub_file
 
             input_code = source_file.read_text(encoding="utf-8")
             input_module = cst.parse_module(input_code)
             output_module = transformer.transform_module(input_module)
 
             target_file.write_text(output_module.code, encoding="utf-8")
+            processed_stub_files.add(stub_file)
 
 
 def _get_django_stubs_dir() -> Path:

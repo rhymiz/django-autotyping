@@ -3,12 +3,13 @@ import os
 import sys
 from pathlib import Path
 
+import libcst as cst
 from django.conf import ENVIRONMENT_VARIABLE as DJANGO_SETTINGS_MODULE_ENV_KEY
 from django.conf import settings
 
 from django_autotyping.app_settings import StubsGenerationSettings
 from django_autotyping.codemodding.codemods.base import BaseVisitorBasedCodemod
-from django_autotyping.stubbing import REQUIRED_DJANGO_STUB_FILES, _get_django_stubs_dir
+from django_autotyping.stubbing import REQUIRED_DJANGO_STUB_FILES, _get_django_stubs_dir, run_codemods
 from django_autotyping.stubbing.codemods.base import StubVisitorBasedCodemod
 
 
@@ -18,6 +19,20 @@ class Distribution:
 
     def locate_file(self, path: str) -> Path:
         return self.root / path
+
+
+class AppendFirstCodemod(StubVisitorBasedCodemod):
+    STUB_FILES = {"module.pyi"}
+
+    def transform_module(self, tree: cst.Module) -> cst.Module:
+        return cst.parse_module(f"{tree.code}FIRST = 1\n")
+
+
+class AppendSecondCodemod(StubVisitorBasedCodemod):
+    STUB_FILES = {"module.pyi"}
+
+    def transform_module(self, tree: cst.Module) -> cst.Module:
+        return cst.parse_module(f"{tree.code}SECOND = 1\n")
 
 
 def get_generate_stubs_module():
@@ -63,6 +78,28 @@ def test_get_django_stubs_dir_skips_incomplete_distribution_metadata(monkeypatch
     monkeypatch.setattr("django_autotyping.stubbing.sys.path", [])
 
     assert _get_django_stubs_dir() == django_stubs
+
+
+def test_run_codemods_starts_each_run_from_source_stubs(tmp_path):
+    source_stubs = tmp_path / "source" / "django-stubs"
+    local_stubs = tmp_path / "local"
+    source_stubs.mkdir(parents=True)
+    local_stubs.joinpath("django-stubs").mkdir(parents=True)
+    source_stubs.joinpath("module.pyi").write_text("SOURCE = 1\n", encoding="utf-8")
+    local_stubs.joinpath("django-stubs", "module.pyi").write_text("STALE = 1\n", encoding="utf-8")
+
+    run_codemods(
+        [AppendFirstCodemod, AppendSecondCodemod],
+        django_context="context",
+        stubs_settings=StubsGenerationSettings(LOCAL_STUBS_DIR=local_stubs, SOURCE_STUBS_DIR=source_stubs),
+    )
+
+    generated = local_stubs.joinpath("django-stubs", "module.pyi").read_text(encoding="utf-8")
+
+    assert "SOURCE = 1" in generated
+    assert "FIRST = 1" in generated
+    assert "SECOND = 1" in generated
+    assert "STALE = 1" not in generated
 
 
 def test_visitor_based_codemods_define_libcst_metadata_provider_attr():
