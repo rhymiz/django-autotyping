@@ -273,12 +273,16 @@ def _augment_related_field_string_overloads(
     _insert_related_field_string_overloads(
         lines,
         "ForeignKey",
-        _render_foreign_key_string_overloads("ForeignKey", model_refs),
+        _render_foreign_key_string_overloads(
+            "ForeignKey", model_refs, stubs_settings.ALLOW_NONE_SET_TYPE
+        ),
     )
     _insert_related_field_string_overloads(
         lines,
         "OneToOneField",
-        _render_foreign_key_string_overloads("OneToOneField", model_refs),
+        _render_foreign_key_string_overloads(
+            "OneToOneField", model_refs, stubs_settings.ALLOW_NONE_SET_TYPE
+        ),
     )
     _insert_related_field_string_overloads(lines, "ManyToManyField", _render_many_to_many_string_overloads(model_refs))
     target_path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
@@ -836,7 +840,9 @@ def _render_generic_view_object_attr_overloads(
     return lines
 
 
-def _render_foreign_key_string_overloads(class_name: str, model_refs: dict[str, str]) -> list[str]:
+def _render_foreign_key_string_overloads(
+    class_name: str, model_refs: dict[str, str], allow_none_set_type: bool = False
+) -> list[str]:
     lines = [RELATED_FIELD_STRING_OVERLOADS_START]
     for label, model_name in sorted(model_refs.items()):
         lines.extend(
@@ -844,17 +850,53 @@ def _render_foreign_key_string_overloads(class_name: str, model_refs: dict[str, 
                 "    @overload",
                 (
                     f'    def __new__(cls, to: Literal["{label}"], on_delete: _OnDeleteOptions, '
-                    f"*args: Any, null: Literal[False] = False, **kwargs: Any) -> {class_name}[{model_name}]: ..."
+                    f"*args: Any, null: Literal[False] = False, **kwargs: Any) -> "
+                    f"{_foreign_key_new_return(class_name, model_name, False, allow_none_set_type)}: ..."
                 ),
                 "    @overload",
                 (
                     f'    def __new__(cls, to: Literal["{label}"], on_delete: _OnDeleteOptions, '
-                    f"*args: Any, null: Literal[True], **kwargs: Any) -> {class_name}[{model_name} | None]: ..."
+                    f"*args: Any, null: Literal[True], **kwargs: Any) -> "
+                    f"{_foreign_key_new_return(class_name, model_name, True, allow_none_set_type)}: ..."
                 ),
             ]
         )
+    lines.extend(
+        [
+            "    @overload",
+            (
+                f"    def __new__(cls, to: type[_ModelT], on_delete: _OnDeleteOptions, "
+                f"*args: Any, null: Literal[False] = False, **kwargs: Any) -> "
+                f"{_foreign_key_new_return(class_name, '_ModelT', False, allow_none_set_type)}: ..."
+            ),
+            "    @overload",
+            (
+                f"    def __new__(cls, to: type[_ModelT], on_delete: _OnDeleteOptions, "
+                f"*args: Any, null: Literal[True], **kwargs: Any) -> "
+                f"{_foreign_key_new_return(class_name, '_ModelT', True, allow_none_set_type)}: ..."
+            ),
+            "    @overload",
+            (
+                f"    def __new__(cls, to: str, on_delete: _OnDeleteOptions, "
+                f"*args: Any, null: Literal[False] = False, **kwargs: Any) -> "
+                f"{_foreign_key_new_return(class_name, 'Model', False, allow_none_set_type)}: ..."
+            ),
+            "    @overload",
+            (
+                f"    def __new__(cls, to: str, on_delete: _OnDeleteOptions, "
+                f"*args: Any, null: Literal[True], **kwargs: Any) -> "
+                f"{_foreign_key_new_return(class_name, 'Model', True, allow_none_set_type)}: ..."
+            ),
+        ]
+    )
     lines.append(RELATED_FIELD_STRING_OVERLOADS_END)
     return lines
+
+
+def _foreign_key_new_return(class_name: str, model_name: str, nullable: bool, allow_none_set_type: bool) -> str:
+    set_type = f"{model_name} | Combinable | None" if allow_none_set_type or nullable else f"{model_name} | Combinable"
+    get_type = f"{model_name} | None" if nullable else model_name
+    return f"{class_name}[{set_type}, {get_type}]"
 
 
 def _render_many_to_many_string_overloads(model_refs: dict[str, str]) -> list[str]:
@@ -864,16 +906,35 @@ def _render_many_to_many_string_overloads(model_refs: dict[str, str]) -> list[st
             [
                 "    @overload",
                 (
-                    f'    def __new__(cls, to: Literal["{label}"], through: type[_MN] | str = ..., '
-                    f"*args: Any, **kwargs: Any) -> ManyToManyField[{model_name}, _MN]: ..."
+                    f'    def __new__(cls, to: Literal["{label}"], through: type[_Through] | str | None = ..., '
+                    f"*args: Any, **kwargs: Any) -> ManyToManyField[{model_name}, _Through]: ..."
                 ),
                 "    @overload",
                 (
-                    f'    def __new__(cls, to: type[_MM] | str, through: Literal["{label}"], '
-                    f"*args: Any, **kwargs: Any) -> ManyToManyField[_MM, {model_name}]: ..."
+                    f'    def __new__(cls, to: type[_To], through: Literal["{label}"], '
+                    f"*args: Any, **kwargs: Any) -> ManyToManyField[_To, {model_name}]: ..."
+                ),
+                "    @overload",
+                (
+                    f'    def __new__(cls, to: str, through: Literal["{label}"], '
+                    f"*args: Any, **kwargs: Any) -> ManyToManyField[Model, {model_name}]: ..."
                 ),
             ]
         )
+    lines.extend(
+        [
+            "    @overload",
+            (
+                "    def __new__(cls, to: type[_To], through: type[_Through] | str | None = ..., "
+                "*args: Any, **kwargs: Any) -> ManyToManyField[_To, _Through]: ..."
+            ),
+            "    @overload",
+            (
+                "    def __new__(cls, to: str, through: type[_Through] | str | None = ..., "
+                "*args: Any, **kwargs: Any) -> ManyToManyField[Model, _Through]: ..."
+            ),
+        ]
+    )
     lines.append(RELATED_FIELD_STRING_OVERLOADS_END)
     return lines
 

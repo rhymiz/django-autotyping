@@ -281,7 +281,7 @@ def test_project_model_relationship_stubs_do_not_require_adjacent_model_stubs(tm
         in detail
     )
     assert 'to: Literal["secondapp.ModelTwo"]' in related
-    assert "-> ForeignKey[ModelTwo]: ..." in related
+    assert "-> ForeignKey[ModelTwo | Combinable, ModelTwo]: ..." in related
     assert related.count("# django-autotyping project string model overloads start") == RELATED_FIELD_STRING_OVERLOAD_BLOCKS
     assert '"model_two_id"' in base
     assert any(

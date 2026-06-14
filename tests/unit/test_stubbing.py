@@ -9,8 +9,18 @@ from django.conf import settings
 
 from django_autotyping.app_settings import StubsGenerationSettings
 from django_autotyping.codemodding.codemods.base import BaseVisitorBasedCodemod
-from django_autotyping.stubbing import REQUIRED_DJANGO_STUB_FILES, _get_django_stubs_dir, run_codemods
+from django_autotyping.stubbing import (
+    REQUIRED_DJANGO_STUB_FILES,
+    _get_django_stubs_dir,
+    create_local_rest_framework_stubs,
+    run_codemods,
+)
 from django_autotyping.stubbing.codemods.base import StubVisitorBasedCodemod
+from django_autotyping.stubbing.codemods.forward_relation_overload_codemod import _related_field_fallback_overload
+from django_autotyping.stubbing.project_models import (
+    _render_foreign_key_string_overloads,
+    _render_many_to_many_string_overloads,
+)
 
 
 class Distribution:
@@ -102,9 +112,67 @@ def test_run_codemods_starts_each_run_from_source_stubs(tmp_path):
     assert "STALE = 1" not in generated
 
 
+def test_create_local_rest_framework_stubs_is_idempotent(monkeypatch, tmp_path):
+    source_stubs = tmp_path / "source" / "rest_framework-stubs"
+    local_stubs = tmp_path / "local"
+    source_stubs.mkdir(parents=True)
+    source_stubs.joinpath("__init__.pyi").write_text("", encoding="utf-8")
+    source_stubs.joinpath("response.pyi").write_text("class _MonkeyPatchedResponse:\n    pass\n", encoding="utf-8")
+    source_stubs.joinpath("relations.pyi").write_text(
+        "from typing import Any, Self\n\n"
+        "class ManyRelatedField: ...\n\n"
+        "class RelatedField:\n"
+        "    def __new__(cls, *args: Any, many: bool = False, **kwargs: Any) -> Self: ...\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        "django_autotyping.stubbing.importlib.metadata.distribution",
+        lambda name: Distribution(tmp_path / "source"),
+    )
+
+    create_local_rest_framework_stubs(local_stubs)
+    first = local_stubs.joinpath("rest_framework-stubs", "relations.pyi").read_text(encoding="utf-8")
+    create_local_rest_framework_stubs(local_stubs)
+    second = local_stubs.joinpath("rest_framework-stubs", "relations.pyi").read_text(encoding="utf-8")
+
+    assert second == first
+    assert second.count("many: Literal[True]") == 1
+
+
 def test_visitor_based_codemods_define_libcst_metadata_provider_attr():
     assert BaseVisitorBasedCodemod.__provides__ is None
     assert StubVisitorBasedCodemod.__provides__ is None
+
+
+def test_related_field_string_overloads_preserve_valid_foreign_key_targets():
+    generated = "\n".join(_render_foreign_key_string_overloads("ForeignKey", {"app.Author": "Author"}))
+
+    assert 'to: Literal["app.Author"]' in generated
+    assert "to: type[_ModelT]" in generated
+    assert "to: str" in generated
+    assert "ForeignKey[_ModelT | Combinable, _ModelT]" in generated
+    assert "ForeignKey[Model | Combinable, Model]" in generated
+
+
+def test_many_to_many_string_overloads_use_existing_stub_type_vars():
+    generated = "\n".join(_render_many_to_many_string_overloads({"app.Author": "Author"}))
+
+    assert 'to: Literal["app.Author"]' in generated
+    assert 'through: Literal["app.Author"]' in generated
+    assert "to: type[_To]" in generated
+    assert "to: str" in generated
+    assert "through: type[_Through] | str | None" in generated
+    assert "_MM" not in generated
+    assert "_MN" not in generated
+
+
+def test_forward_relation_fallback_overload_preserves_original_to_shape():
+    generated = _related_field_fallback_overload("ForeignKey")
+
+    assert "to: type[Model] | str" in generated
+    assert "on_delete: Callable[..., None]" in generated
+    assert "*args: Any, **kwargs: Any" in generated
 
 
 def test_generate_stubs_uses_cli_local_stubs_dir(monkeypatch, tmp_path):

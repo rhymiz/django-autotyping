@@ -118,11 +118,13 @@ def create_local_rest_framework_stubs(stubs_dir: Path) -> None:
         shutil.copytree(source_stubs, target_package)
 
     response_stub = target_package / "response.pyi"
+    shutil.copy2(source_stubs / "response.pyi", response_stub)
     input_module = cst.parse_module(response_stub.read_text(encoding="utf-8"))
     output_module = input_module.visit(_DRFResponseStubTransformer())
     response_stub.write_text(output_module.code, encoding="utf-8")
 
     relations_stub = target_package / "relations.pyi"
+    shutil.copy2(source_stubs / "relations.pyi", relations_stub)
     input_module = cst.parse_module(relations_stub.read_text(encoding="utf-8"))
     output_module = input_module.visit(_DRFRelationsStubTransformer())
     relations_stub.write_text(output_module.code, encoding="utf-8")

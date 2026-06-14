@@ -144,6 +144,11 @@ class ForwardRelationOverloadCodemod(StubVisitorBasedCodemod):
             # Match against a real model type. This removes the `| str` part so type checkers infer `self`.
             _with_param_annotations(base_code, to_annotation="type[_To]")
         )
+        overloads.append(
+            "@overload\n"
+            "def __init__(self, to: type[Model] | str, *args: Any, "
+            "through: type[Model] | str | None = None, **kwargs: Any) -> None: ...\n"
+        )
 
         return _parse_function_block(overloads)
 
@@ -187,23 +192,20 @@ class ForwardRelationOverloadCodemod(StubVisitorBasedCodemod):
                 )
             )
 
-        # Temp workaround to have autocompletion working, this overload shouldn't be used as a match by type checkers
-        # to_param = get_param(overload_init, "to")
-        # literal_completion_overload = overload_init.with_deep_changes(
-        #     old_node=to_param,
-        #     annotation=cst.Annotation(
-        #         annotation=cst.Subscript(
-        #             value=cst.Name("Literal"),
-        #             slice=[
-        #                 cst.SubscriptElement(cst.Index(cst.SimpleString(string)))
-        #                 for model in self.django_models
-        #                 for string in (f'"{model.__name__}"', f'"{model._meta.app_label}.{model.__name__}"')
-        #             ],
-        #         )
-        #     ),
-        # )
+        for nullable in (True, False):  # Order matters!
+            overloads.append(
+                _with_param_annotations(
+                    base_code,
+                    to_annotation="str",
+                    self_annotation=_build_self_annotation(
+                        field_cls_name, "Model", nullable, self.stubs_settings.ALLOW_NONE_SET_TYPE
+                    ),
+                    null_annotation=f"Literal[{nullable}]",
+                    null_has_default=not nullable,
+                )
+            )
 
-        # overloads.append(literal_completion_overload)
+        overloads.append(_related_field_fallback_overload(field_cls_name))
 
         return _parse_function_block(overloads)
 
@@ -235,6 +237,20 @@ def _build_to_annotation(model: ModelType, allow_plain_model_name: bool) -> str:
         literals.insert(0, f'"{model.__name__}"')
 
     return f"Literal[{', '.join(literals)}]"
+
+
+def _related_field_fallback_overload(field_cls_name: str) -> str:
+    if field_cls_name == "ForeignObject":
+        return (
+            "@overload\n"
+            "def __init__(self, to: type[Model] | str, on_delete: Callable[..., None], "
+            "from_fields: Sequence[str], to_fields: Sequence[str], *args: Any, **kwargs: Any) -> None: ...\n"
+        )
+    return (
+        "@overload\n"
+        "def __init__(self, to: type[Model] | str, on_delete: Callable[..., None], "
+        "*args: Any, **kwargs: Any) -> None: ...\n"
+    )
 
 
 def _function_code(function: cst.FunctionDef) -> str:
