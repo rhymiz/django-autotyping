@@ -60,6 +60,48 @@ def test_model_init_kwargs_are_generated_once(local_stubs, stubstestproj_context
     assert base_stubs.read_text().count("class ModelOneInitKwargs(TypedDict, total=False):") == 1
 
 
+def test_foreign_key_attname_model_creation_kwargs(local_stubs, stubstestproj_context):
+    stubs_settings = StubsGenerationSettings(LOCAL_STUBS_DIR=local_stubs)
+
+    codemods = gather_codemods(include=["DJAS002", "DJAS003"])
+    run_codemods(codemods, stubstestproj_context, stubs_settings)
+
+    base_stubs = local_stubs / "django-stubs" / "db" / "models" / "base.pyi"
+    manager_stubs = local_stubs / "django-stubs" / "db" / "models" / "manager.pyi"
+
+    generated_base = base_stubs.read_text()
+    generated_manager = manager_stubs.read_text()
+
+    assert "class ForeignKeyModelInitKwargs(TypedDict, total=False):" in generated_base
+    assert "model_one: ModelOne | Combinable" in generated_base
+    assert "model_one_id: int | str | Combinable" in generated_base
+    assert "model_one_null: ModelOne | Combinable | None" in generated_base
+    assert "model_one_null_id: int | str | Combinable | None" in generated_base
+    assert "class ForeignKeyModelCreateKwargs(TypedDict, total=False):" in generated_manager
+    assert "model_one_id: int | str | Combinable" in generated_manager
+    assert "model_one_null_id: int | str | Combinable | None" in generated_manager
+
+
+def test_required_foreign_key_attname_model_creation_kwargs(local_stubs, stubstestproj_context):
+    stubs_settings = StubsGenerationSettings(LOCAL_STUBS_DIR=local_stubs, MODEL_FIELDS_OPTIONAL=False)
+
+    codemods = gather_codemods(include=["DJAS002", "DJAS003"])
+    run_codemods(codemods, stubstestproj_context, stubs_settings)
+
+    base_stubs = local_stubs / "django-stubs" / "db" / "models" / "base.pyi"
+    manager_stubs = local_stubs / "django-stubs" / "db" / "models" / "manager.pyi"
+
+    generated_base = base_stubs.read_text()
+    generated_manager = manager_stubs.read_text()
+
+    assert "class ForeignKeyModelInitKwargs(TypedDict, total=False):" in generated_base
+    assert "model_one: Required[ModelOne | Combinable]" in generated_base
+    assert "class ForeignKeyModelInitKwargsByModelOneId(TypedDict, total=False):" in generated_base
+    assert "model_one_id: Required[int | str | Combinable]" in generated_base
+    assert "class ForeignKeyModelCreateKwargsByModelOneId(TypedDict, total=False):" in generated_manager
+    assert "model_one_id: Required[int | str | Combinable]" in generated_manager
+
+
 def test_reverse_overloads_preserve_dynamic_str_fallback(local_stubs, stubstestproj_context):
     stubs_settings = StubsGenerationSettings(LOCAL_STUBS_DIR=local_stubs)
 

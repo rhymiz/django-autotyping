@@ -28,12 +28,26 @@ ForeignKeyModel()  # type: ignore
 ForeignKeyModel.objects.create()  # type: ignore
 ForeignKeyModel(model_one=model_one)
 ForeignKeyModel.objects.create(model_one=model_one)
+ForeignKeyModel(model_one_id=1)
+ForeignKeyModel.objects.create(model_one_id=1)
 ForeignKeyModel(model_one=model_one, model_one_null=model_one)
 ForeignKeyModel.objects.create(model_one=model_one, model_one_null=model_one)
+ForeignKeyModel(model_one_id=1, model_one_null=model_one)
+ForeignKeyModel.objects.create(model_one_id=1, model_one_null=model_one)
+ForeignKeyModel(model_one=model_one, model_one_null_id=1)
+ForeignKeyModel.objects.create(model_one=model_one, model_one_null_id=1)
+ForeignKeyModel(model_one_id=1, model_one_null_id=1)
+ForeignKeyModel.objects.create(model_one_id=1, model_one_null_id=1)
 ForeignKeyModel(model_one=None)  # type: ignore
 ForeignKeyModel.objects.create(model_one=None)  # type: ignore
 ForeignKeyModel(model_one=model_one, model_one_null=None)
 ForeignKeyModel.objects.create(model_one=model_one, model_one_null=None)
+ForeignKeyModel(model_one_id=1, model_one_null=None)
+ForeignKeyModel.objects.create(model_one_id=1, model_one_null=None)
+ForeignKeyModel(model_one=model_one, model_one_null_id=None)
+ForeignKeyModel.objects.create(model_one=model_one, model_one_null_id=None)
+ForeignKeyModel(model_one_id=1, model_one_null_id=None)
+ForeignKeyModel.objects.create(model_one_id=1, model_one_null_id=None)
 
 PrimaryKeyModel()
 PrimaryKeyModel.objects.create()
