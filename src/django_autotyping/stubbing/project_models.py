@@ -59,6 +59,7 @@ def create_project_model_stubs(
     _augment_model_base_dynamic_attrs(django_context, stubs_settings)
     _augment_related_field_string_overloads(django_context, stubs_settings)
     _augment_generic_view_object_attrs(django_context, stubs_settings, source_root)
+    _augment_user_model_alias(django_context, stubs_settings)
 
 
 MODEL_DYNAMIC_ATTRS_START = "    # django-autotyping project model attrs start"
@@ -242,12 +243,52 @@ def _augment_model_base_dynamic_attrs(
             *_model_dynamic_attr_imports(model_attr_types),
         ],
     )
-    lines = _ensure_typing_imports(lines, ["Literal", "overload"])
+    lines = _ensure_typing_imports(lines, ["Callable", "Literal", "overload"])
     if model_manager_attr_types:
         manager_insert_at = _model_manager_attr_insert_index(lines)
         lines[manager_insert_at:manager_insert_at] = _render_model_manager_attr_overloads(model_manager_attr_types)
     insert_at = _model_dynamic_attr_insert_index(lines)
     lines[insert_at:insert_at] = _render_model_dynamic_attr_overloads(model_attr_types)
+    target_path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+
+
+def _augment_user_model_alias(
+    django_context: DjangoStubbingContext,
+    stubs_settings: StubsGenerationSettings,
+) -> None:
+    """Refine the ``_User`` placeholder to the configured ``AUTH_USER_MODEL``.
+
+    django-stubs ships ``_User: TypeAlias = AbstractBaseUser`` and relies on its
+    mypy plugin to rewrite it to the concrete user model. Without that rewrite,
+    ``HttpRequest.user`` (typed ``_User | AnonymousUser``) only exposes
+    ``AbstractBaseUser`` members, so e.g. ``request.user.is_superuser`` is
+    unresolved. This performs the same refinement statically for non-mypy
+    checkers.
+    """
+    local_stubs_dir = stubs_settings.LOCAL_STUBS_DIR
+    if local_stubs_dir is None:
+        return
+    target_path = local_stubs_dir / "django-stubs" / "contrib" / "auth" / "models.pyi"
+    if not target_path.exists():
+        return
+
+    from django.contrib.auth import get_user_model
+
+    user_model = get_user_model()
+    name = user_model.__name__
+    module = user_model._meta.app_config.models_module.__name__
+
+    needle = "_User: TypeAlias = AbstractBaseUser"
+    lines = target_path.read_text(encoding="utf-8").splitlines()
+    if not any(line.strip() == needle for line in lines):
+        return
+
+    # For the default ``auth.User`` the class already lives in this stub module;
+    # a custom model elsewhere must be imported so the alias resolves.
+    if module != "django.contrib.auth.models":
+        lines = _inject_imports(lines, [f"from {module} import {name}"])
+
+    lines = [f"_User: TypeAlias = {name}" if line.strip() == needle else line for line in lines]
     target_path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
 
 
@@ -565,6 +606,13 @@ def _collect_model_dynamic_attr_types(django_context: DjangoStubbingContext) -> 
             if field.null:
                 annotation = f"{annotation} | None"
             attr_types[field.attname].add(annotation)
+
+            # Django generates a ``get_<field>_display()`` method for every field
+            # that declares ``choices``. django-stubs' mypy plugin synthesizes
+            # these; the static stubs must too, or type checkers (e.g. ty) flag
+            # the calls as unresolved on newer django-stubs.
+            if getattr(field, "choices", None):
+                attr_types[f"get_{field.name}_display"].add("Callable[[], str]")
 
         for field in model._meta.many_to_many:
             attr_types[field.name].add(

@@ -127,8 +127,10 @@ class ReverseOverloadCodemod(StubVisitorBasedCodemod):
                 else:
                     annotation = helpers.parse_template_expression(path_info.get_kwargs_annotation())
 
-                    # Add the TypedDict definition if not already done:
-                    for path_args in path_info.arguments_set:
+                    # Add the TypedDict definition if not already done. Sort by
+                    # name so the emitted stub is deterministic (``arguments_set``
+                    # is a set, whose iteration order varies between runs).
+                    for path_args in sorted(path_info.arguments_set, key=lambda pa: pa.typeddict_name):
                         typeddict_name = path_args.typeddict_name
                         if typeddict_name in seen_typeddict_names:
                             continue
