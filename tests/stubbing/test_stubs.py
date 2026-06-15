@@ -114,8 +114,7 @@ def test_reverse_overloads_preserve_dynamic_str_fallback(local_stubs, stubstestp
     assert "viewname: Callable[..., HttpResponseBase] | str | None," in generated
     assert 'viewname: Literal["item-detail"],' in generated
     assert (
-        "kwargs: _24DFE8Kwargs | _2AD99CKwargs," in generated
-        or "kwargs: _2AD99CKwargs | _24DFE8Kwargs," in generated
+        "kwargs: _24DFE8Kwargs | _2AD99CKwargs," in generated or "kwargs: _2AD99CKwargs | _24DFE8Kwargs," in generated
     )
 
 
@@ -294,7 +293,9 @@ def test_project_model_stubs_include_dynamic_model_attrs(tmp_path, local_stubs, 
     assert model_base.read_text().count("# django-autotyping project model managers start") == 1
 
 
-def test_project_model_relationship_stubs_do_not_require_adjacent_model_stubs(tmp_path, local_stubs, stubstestproj_context):
+def test_project_model_relationship_stubs_do_not_require_adjacent_model_stubs(
+    tmp_path, local_stubs, stubstestproj_context
+):
     stubs_settings = StubsGenerationSettings(
         LOCAL_STUBS_DIR=local_stubs,
         MODEL_STUBS_SOURCE_DIR=STUBSTESTPROJ,
@@ -317,14 +318,17 @@ def test_project_model_relationship_stubs_do_not_require_adjacent_model_stubs(tm
     assert "def __getattr__(self: ModelOne, name: Literal[" in base
     assert "def __getattr__(cls: type[ModelOne], name: Literal[" in base
     assert "def __getattr__(self: Model, name: Literal[" not in base
-    assert "def __getattr__(self: ModelOneDeleteView, name: Literal[\"object\"]) -> ModelOne: ..." in detail
+    assert 'def __getattr__(self: ModelOneDeleteView, name: Literal["object"]) -> ModelOne: ...' in detail
     assert (
         "def get_object(self: ModelOneDeleteView, queryset: models.query.QuerySet[Any] | None = ...) -> ModelOne: ..."
         in detail
     )
     assert 'to: Literal["secondapp.ModelTwo"]' in related
     assert "-> ForeignKey[ModelTwo | Combinable, ModelTwo]: ..." in related
-    assert related.count("# django-autotyping project string model overloads start") == RELATED_FIELD_STRING_OVERLOAD_BLOCKS
+    assert (
+        related.count("# django-autotyping project string model overloads start")
+        == RELATED_FIELD_STRING_OVERLOAD_BLOCKS
+    )
     assert '"model_two_id"' in base
     assert any(
         "self: ModelOne" in line and '"model_two"' in line and "-> ModelTwo" in line for line in base.splitlines()

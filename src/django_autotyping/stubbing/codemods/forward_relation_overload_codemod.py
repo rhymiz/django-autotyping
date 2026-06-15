@@ -210,9 +210,7 @@ class ForwardRelationOverloadCodemod(StubVisitorBasedCodemod):
         return _parse_function_block(overloads)
 
 
-def _build_self_annotation(
-    field_cls_name: str, model_name: str, nullable: bool, allow_none_set_type: bool
-) -> str:
+def _build_self_annotation(field_cls_name: str, model_name: str, nullable: bool, allow_none_set_type: bool) -> str:
     """Builds the `self` annotation of foreign fields.
 
     With `field_cls_name="ForeignKey"`, `model_name="MyModel"` and `nullable=False`, the following is produced:
@@ -259,8 +257,7 @@ def _function_code(function: cst.FunctionDef) -> str:
 
 def _parse_function_block(functions: list[str]) -> list[cst.FunctionDef]:
     return [
-        helpers.ensure_type(statement, cst.FunctionDef)
-        for statement in cst.parse_module("\n".join(functions)).body
+        helpers.ensure_type(statement, cst.FunctionDef) for statement in cst.parse_module("\n".join(functions)).body
     ]
 
 

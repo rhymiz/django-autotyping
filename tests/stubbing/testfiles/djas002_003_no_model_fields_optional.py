@@ -6,7 +6,7 @@ from django.db.models.expressions import Combinable
 from stubstestproj.firstapp.models import CharFieldsModel, DateFieldsModel, ForeignKeyModel, ModelOne, PrimaryKeyModel
 
 CharFieldsModel()  # type: ignore
-CharFieldsModel.objects.create()  # type: ignore
+CharFieldsModel.objects.create()
 CharFieldsModel(char_field="")
 CharFieldsModel.objects.create(char_field="")
 CharFieldsModel(char_field=1)
@@ -17,7 +17,7 @@ CharFieldsModel(char_field=Combinable())
 CharFieldsModel.objects.create(char_field=Combinable())
 
 DateFieldsModel()  # type: ignore
-DateFieldsModel.objects.create()  # type: ignore
+DateFieldsModel.objects.create()
 DateFieldsModel(date_field=date.today())
 DateFieldsModel.objects.create(date_field=date.today())
 
@@ -25,7 +25,7 @@ DateFieldsModel.objects.create(date_field=date.today())
 model_one = ModelOne()  # type: ignore
 
 ForeignKeyModel()  # type: ignore
-ForeignKeyModel.objects.create()  # type: ignore
+ForeignKeyModel.objects.create()
 ForeignKeyModel(model_one=model_one)
 ForeignKeyModel.objects.create(model_one=model_one)
 ForeignKeyModel(model_one_id=1)
@@ -39,7 +39,7 @@ ForeignKeyModel.objects.create(model_one=model_one, model_one_null_id=1)
 ForeignKeyModel(model_one_id=1, model_one_null_id=1)
 ForeignKeyModel.objects.create(model_one_id=1, model_one_null_id=1)
 ForeignKeyModel(model_one=None)  # type: ignore
-ForeignKeyModel.objects.create(model_one=None)  # type: ignore
+ForeignKeyModel.objects.create(model_one=None)
 ForeignKeyModel(model_one=model_one, model_one_null=None)
 ForeignKeyModel.objects.create(model_one=model_one, model_one_null=None)
 ForeignKeyModel(model_one_id=1, model_one_null=None)

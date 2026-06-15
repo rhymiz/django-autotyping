@@ -47,9 +47,7 @@ class TestCaseCodemod(StubVisitorBasedCodemod):
         AddImportsVisitor.add_needed_import(context, module="django.forms.forms", obj="BaseForm")
 
     @m.leave(SIMPLE_TEST_CASE_MATCHER)
-    def mutate_simple_test_case_ClassDef(
-        self, original_node: cst.ClassDef, updated_node: cst.ClassDef
-    ) -> cst.ClassDef:
+    def mutate_simple_test_case_ClassDef(self, original_node: cst.ClassDef, updated_node: cst.ClassDef) -> cst.ClassDef:
         has_method = False
         body = [
             ASSERT_FORM_ERROR_DEF if m.matches(statement, m.FunctionDef(name=m.Name("assertFormError"))) else statement

@@ -314,16 +314,12 @@ def _augment_related_field_string_overloads(
     _insert_related_field_string_overloads(
         lines,
         "ForeignKey",
-        _render_foreign_key_string_overloads(
-            "ForeignKey", model_refs, stubs_settings.ALLOW_NONE_SET_TYPE
-        ),
+        _render_foreign_key_string_overloads("ForeignKey", model_refs, stubs_settings.ALLOW_NONE_SET_TYPE),
     )
     _insert_related_field_string_overloads(
         lines,
         "OneToOneField",
-        _render_foreign_key_string_overloads(
-            "OneToOneField", model_refs, stubs_settings.ALLOW_NONE_SET_TYPE
-        ),
+        _render_foreign_key_string_overloads("OneToOneField", model_refs, stubs_settings.ALLOW_NONE_SET_TYPE),
     )
     _insert_related_field_string_overloads(lines, "ManyToManyField", _render_many_to_many_string_overloads(model_refs))
     target_path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")

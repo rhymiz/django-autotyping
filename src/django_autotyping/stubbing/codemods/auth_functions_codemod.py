@@ -62,6 +62,11 @@ class AuthFunctionsCodemod(StubVisitorBasedCodemod):
             module=user_model._meta.app_config.models_module.__name__,
             obj=self.user_model_name,
         )
+        AddImportsVisitor.add_needed_import(
+            self.context,
+            module="django.contrib.auth.models",
+            obj="AnonymousUser",
+        )
 
     @m.leave(AUTHENTICATE_DEF_MATCHER)
     def mutate_AuthenticateFunctionDef(

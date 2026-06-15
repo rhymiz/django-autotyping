@@ -63,9 +63,8 @@ AllFieldsModel.objects.create(decimal_field="1")
 
 AllFieldsModel(text_field="")
 AllFieldsModel.objects.create(text_field="")
-# TODO why is this different from char_field?
 AllFieldsModel(text_field=1)  # type: ignore
-AllFieldsModel.objects.create(text_field=1)  # type: ignore
+AllFieldsModel.objects.create(text_field=1)
 
 AllFieldsModel(boolean_field=False)
 AllFieldsModel.objects.create(boolean_field=False)
@@ -105,7 +104,7 @@ ForeignKeyModel.objects.create(model_one_null=ModelOne())
 ForeignKeyModel(model_one_null_id=1)
 ForeignKeyModel.objects.create(model_one_null_id=1)
 ForeignKeyModel(model_one=None)  # type: ignore
-ForeignKeyModel.objects.create(model_one=None)  # type: ignore
+ForeignKeyModel.objects.create(model_one=None)
 ForeignKeyModel(model_one_null=None)
 ForeignKeyModel.objects.create(model_one_null=None)
 ForeignKeyModel(model_one_null_id=None)

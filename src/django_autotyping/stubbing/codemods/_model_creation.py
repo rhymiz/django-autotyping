@@ -124,7 +124,7 @@ class ModelCreationBaseCodemod(StubVisitorBasedCodemod, ABC):
 
         generic_foreign_key_cls = None
         if self.django_context.apps.is_installed("django.contrib.contenttypes"):
-            from django.contrib.contenttypes.fields import GenericForeignKey  # noqa: PLC0415
+            from django.contrib.contenttypes.fields import GenericForeignKey
 
             generic_foreign_key_cls = GenericForeignKey
         all_optional = self.stubs_settings.MODEL_FIELDS_OPTIONAL
@@ -232,11 +232,7 @@ class ModelCreationBaseCodemod(StubVisitorBasedCodemod, ABC):
                 return [
                     (
                         self.KWARGS_TYPED_DICT_NAME.format(model_name=model_name),
-                        [
-                            attr
-                            for field_options in attribute_options
-                            for attr in field_options[0]
-                        ],
+                        [attr for field_options in attribute_options for attr in field_options[0]],
                     )
                 ]
 

@@ -1,4 +1,0 @@
--c requirements.txt
-mkdocs
-mkdocstrings[python]
-mkdocs-material
