@@ -1,4 +1,11 @@
+from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.models import ContentType
 from django.db import models
+from zoneinfo import ZoneInfo
+
+
+def default_zone() -> ZoneInfo:
+    return ZoneInfo("UTC")
 
 
 class ModelOne(models.Model):
@@ -67,3 +74,33 @@ class PrimaryKeyModel(models.Model):
 
 class AltNameModel(models.Model):
     field = models.CharField(name="alt_name")
+
+
+class AbstractTimestampedModel(models.Model):
+    class Meta:
+        abstract = True
+
+
+class ChoiceModel(AbstractTimestampedModel):
+    class Status(models.TextChoices):
+        DRAFT = "draft", "Draft"
+        PUBLISHED = "published", "Published"
+
+    status = models.CharField(max_length=20, choices=Status.choices)
+
+    class Meta(AbstractTimestampedModel.Meta):
+        verbose_name = "choice model"
+
+    @property
+    def tzinfo(self) -> ZoneInfo:
+        return default_zone()
+
+    def related_zone(self) -> ZoneInfo:
+        return default_zone()
+
+
+class GenericTargetModel(models.Model):
+    content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
+    object_id = models.CharField(max_length=36)
+    group = models.ForeignKey("auth.Group", on_delete=models.CASCADE, related_name="generic_targets")
+    content_object = GenericForeignKey("content_type", "object_id")

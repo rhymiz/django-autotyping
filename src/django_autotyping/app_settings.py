@@ -43,6 +43,24 @@ class StubsGenerationSettings:
     to the first entry in site packages.
     """
 
+    MODEL_STUBS_DIR: Path | None = None
+    """The directory where first-party model-module stubs should be written.
+
+    If this is the project root, stubs are written next to the corresponding
+    ``models.py`` files, which lets type checkers use them for first-party
+    module resolution. Leave this unset to avoid adjacent ``models.pyi`` files
+    while still allowing project-aware relationship overlays via
+    ``MODEL_STUBS_SOURCE_DIR``.
+    """
+
+    MODEL_STUBS_SOURCE_DIR: Path | None = None
+    """The source root used to decide which models are first-party.
+
+    If unset, ``MODEL_STUBS_DIR`` is also used as the source root. This can be
+    set without ``MODEL_STUBS_DIR`` to generate local django-stubs overlays for
+    dynamic model relationships without writing adjacent model-module stubs.
+    """
+
     ALLOW_PLAIN_MODEL_REFERENCES: bool = True
     """Whether string references in the form of `{model_name}` should be generated in overloads.
 
@@ -96,6 +114,15 @@ class StubsGenerationSettings:
     Instead, it is recommended to use the `kwargs` argument.
 
     Affected rules: `DJAS015`.
+    """
+
+    DRF_TEST_CLIENT: bool = False
+    """Whether Django test cases should expose Django REST Framework's ``APIClient`` as ``self.client``.
+
+    This is useful for projects that use ``rest_framework.test.APIClient`` in Django ``TestCase`` classes,
+    because Django's base stubs otherwise type ``self.client`` as ``django.test.Client``.
+
+    Affected rules: `DJAS018`.
     """
 
 

@@ -18,7 +18,19 @@ else:
 
 
 RulesT: TypeAlias = Literal[
-    "DJA001", "DJAS001", "DJAS002", "DJAS003", "DJAS010", "DJAS011", "DJAS015", "DJAS016", "DJAS017"
+    "DJA001",
+    "DJAS001",
+    "DJAS002",
+    "DJAS003",
+    "DJAS010",
+    "DJAS011",
+    "DJAS015",
+    "DJAS016",
+    "DJAS017",
+    "DJAS018",
+    "DJAS019",
+    "DJAS020",
+    "DJAS021",
 ]
 
 
@@ -53,6 +65,16 @@ class StubsGenerationSettingsDict(TypedDict, total=False):
     """The directory of the source `django-stubs` to be used. Will default
     to the first entry in site packages.
     """
+
+    MODEL_STUBS_DIR: Path | None
+    """The directory where first-party model-module stubs should be written.
+
+    Leave unset to avoid adjacent ``models.pyi`` files while still allowing
+    project-aware relationship overlays via ``MODEL_STUBS_SOURCE_DIR``.
+    """
+
+    MODEL_STUBS_SOURCE_DIR: Path | None
+    """The source root used to decide which models are first-party."""
 
     ALLOW_PLAIN_MODEL_REFERENCES: bool
     """Whether string references in the form of `{model_name}` should be generated in overloads.

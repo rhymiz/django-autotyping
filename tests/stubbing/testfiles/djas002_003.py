@@ -98,12 +98,18 @@ AllFieldsModel.objects.create(uuid_field=UUID())
 
 ForeignKeyModel(model_one=ModelOne())
 ForeignKeyModel.objects.create(model_one=ModelOne())
+ForeignKeyModel(model_one_id=1)
+ForeignKeyModel.objects.create(model_one_id=1)
 ForeignKeyModel(model_one_null=ModelOne())
 ForeignKeyModel.objects.create(model_one_null=ModelOne())
+ForeignKeyModel(model_one_null_id=1)
+ForeignKeyModel.objects.create(model_one_null_id=1)
 ForeignKeyModel(model_one=None)  # type: ignore
 ForeignKeyModel.objects.create(model_one=None)  # type: ignore
 ForeignKeyModel(model_one_null=None)
 ForeignKeyModel.objects.create(model_one_null=None)
+ForeignKeyModel(model_one_null_id=None)
+ForeignKeyModel.objects.create(model_one_null_id=None)
 
 AltNameModel(field="")  # type: ignore
 AltNameModel(alt_name="")

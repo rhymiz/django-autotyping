@@ -13,6 +13,8 @@ if TYPE_CHECKING:
 class BaseVisitorBasedCodemod(VisitorBasedCodemodCommand):
     """The base class for all codemods used for Django user code."""
 
+    __provides__ = None
+
     def __init__(self, context: CodemodContext) -> None:
         super().__init__(context)
         self.django_context = cast("DjangoCodemodContext", context.scratch["django_context"])

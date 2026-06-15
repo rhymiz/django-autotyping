@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from itertools import product
 from typing import ClassVar, TypedDict, cast
 
 import libcst as cst
@@ -29,9 +30,11 @@ from libcst.metadata import ScopeProvider
 from django_autotyping._compat import Required
 from django_autotyping.typing import FlattenFunctionDef
 
-from ._utils import TypedDictAttribute, build_typed_dict, get_param
+from ._utils import TypedDictAttribute, build_typed_dict, get_param, to_pascal
 from .base import InsertAfterImportsVisitor, StubVisitorBasedCodemod
 from .constants import OVERLOAD_DECORATOR
+
+MAX_REQUIRED_RELATION_KWARG_VARIANTS = 32
 
 
 class FieldType(TypedDict):
@@ -102,6 +105,7 @@ class ModelCreationBaseCodemod(StubVisitorBasedCodemod, ABC):
     def __init__(self, context: CodemodContext) -> None:
         super().__init__(context)
         self.add_model_imports()
+        self.model_kwargs_names: dict[str, list[str]] = {}
 
         model_typed_dicts = self.build_model_kwargs()
         InsertAfterImportsVisitor.insert_after_imports(context, model_typed_dicts)
@@ -118,9 +122,11 @@ class ModelCreationBaseCodemod(StubVisitorBasedCodemod, ABC):
     def build_model_kwargs(self) -> list[cst.ClassDef]:
         """Return a list of class definition representing the typed dicts to be used for overloads."""
 
-        contenttypes_installed = self.django_context.apps.is_installed("django.contrib.contenttypes")
-        if contenttypes_installed:
-            from django.contrib.contenttypes.fields import GenericForeignKey
+        generic_foreign_key_cls = None
+        if self.django_context.apps.is_installed("django.contrib.contenttypes"):
+            from django.contrib.contenttypes.fields import GenericForeignKey  # noqa: PLC0415
+
+            generic_foreign_key_cls = GenericForeignKey
         all_optional = self.stubs_settings.MODEL_FIELDS_OPTIONAL
 
         class_defs: list[cst.ClassDef] = []
@@ -129,11 +135,10 @@ class ModelCreationBaseCodemod(StubVisitorBasedCodemod, ABC):
             model_name = self.django_context.get_model_name(model)
 
             # This mostly follows the implementation of the Django's `Model.__init__` method:
-            typed_dict_attributes = []
+            attribute_options: list[list[list[TypedDictAttribute]]] = []
             for field in cast(list[Field], model._meta.fields):
+                required = not all_optional and self.django_context.is_required_field(field)
                 if isinstance(field.remote_field, ForeignObjectRel):
-                    # TODO support for attname as well (i.e. my_foreign_field_id).
-                    # Issue is if this is a required field, we can't make both required at the same time
                     attr_name = field.name
                     if isinstance(field.remote_field.model, str):
                         # This seems to happen when a string reference can't be resolved
@@ -146,7 +151,7 @@ class ModelCreationBaseCodemod(StubVisitorBasedCodemod, ABC):
                             field.remote_field.model._meta.concrete_model
                         )
                         annotation += " | Combinable"
-                elif contenttypes_installed and isinstance(field, GenericForeignKey):
+                elif generic_foreign_key_cls is not None and isinstance(field, generic_foreign_key_cls):
                     # it's generic, so cannot set specific model
                     attr_name = field.name
                     annotation = "Any"
@@ -154,41 +159,125 @@ class ModelCreationBaseCodemod(StubVisitorBasedCodemod, ABC):
                 else:
                     attr_name = field.attname
                     # Regular fields:
-                    field_set_type = next(
-                        (v for k, v in FIELD_SET_TYPES_MAP.items() if issubclass(type(field), k)),
-                        FieldType(type="Any", typing_imports=["Any"]),
-                    )
+                    annotation = self.get_field_set_annotation(field)
 
-                    self.add_typing_imports(field_set_type.get("typing_imports", []))
-                    if extra_imports := field_set_type.get("extra_imports"):
-                        imports = AddImportsVisitor._get_imports_from_context(self.context)
-                        imports.extend(extra_imports)
-                        self.context.scratch[AddImportsVisitor.CONTEXT_KEY] = imports
-
-                    annotation = field_set_type["type"]
-
-                if not isinstance(field, GenericForeignKey) and self.django_context.is_nullable_field(field):
+                if (generic_foreign_key_cls is None or not isinstance(field, generic_foreign_key_cls)) and (
+                    self.django_context.is_nullable_field(field)
+                ):
                     annotation += " | None"
 
-                typed_dict_attributes.append(
-                    TypedDictAttribute(
-                        attr_name,
-                        annotation=annotation,
+                attr = TypedDictAttribute(
+                    attr_name,
+                    annotation=annotation,
+                    docstring=getattr(field, "help_text", None) or None,
+                    required=required,
+                )
+                field_options = [[attr]]
+                if (
+                    isinstance(field.remote_field, ForeignObjectRel)
+                    and field.attname != field.name
+                    and not isinstance(field.remote_field.model, str)
+                ):
+                    attname_annotation = self.get_field_set_annotation(field.target_field)
+                    if self.django_context.is_nullable_field(field):
+                        attname_annotation += " | None"
+                    attname_attr = TypedDictAttribute(
+                        field.attname,
+                        annotation=attname_annotation,
                         docstring=getattr(field, "help_text", None) or None,
-                        required=not all_optional and self.django_context.is_required_field(field),
+                    )
+                    if required:
+                        field_options.append(
+                            [
+                                TypedDictAttribute(
+                                    attr.name,
+                                    annotation=attr.annotation,
+                                    docstring=attr.docstring,
+                                ),
+                                TypedDictAttribute(
+                                    attname_attr.name,
+                                    annotation=attname_attr.annotation,
+                                    docstring=attname_attr.docstring,
+                                    required=True,
+                                ),
+                            ]
+                        )
+                    else:
+                        field_options[0].append(attname_attr)
+                attribute_options.append(field_options)
+
+            kwargs_variants = self.build_kwargs_variants(model_name, attribute_options)
+            self.model_kwargs_names[model_name] = [name for name, _ in kwargs_variants]
+            for name, typed_dict_attributes in kwargs_variants:
+                class_defs.append(
+                    build_typed_dict(
+                        name,
+                        attributes=typed_dict_attributes,
+                        total=False,
+                        leading_line=True,
                     )
                 )
 
-            class_defs.append(
-                build_typed_dict(
-                    self.KWARGS_TYPED_DICT_NAME.format(model_name=model_name),
-                    attributes=typed_dict_attributes,
-                    total=False,
-                    leading_line=True,
+        return class_defs
+
+    def build_kwargs_variants(
+        self,
+        model_name: str,
+        attribute_options: list[list[list[TypedDictAttribute]]],
+    ) -> list[tuple[str, list[TypedDictAttribute]]]:
+        variant_count = 1
+        for field_options in attribute_options:
+            variant_count *= len(field_options)
+            if variant_count > MAX_REQUIRED_RELATION_KWARG_VARIANTS:
+                return [
+                    (
+                        self.KWARGS_TYPED_DICT_NAME.format(model_name=model_name),
+                        [
+                            attr
+                            for field_options in attribute_options
+                            for attr in field_options[0]
+                        ],
+                    )
+                ]
+
+        variants: list[tuple[str, list[TypedDictAttribute]]] = []
+        for field_option_indexes in product(*(range(len(options)) for options in attribute_options)):
+            required_attnames = [
+                attr.name
+                for index, field_options in zip(field_option_indexes, attribute_options)
+                for attr in field_options[index]
+                if attr.required and field_options[index] is not field_options[0]
+            ]
+            if required_attnames:
+                suffix = "By" + "".join(to_pascal(name) for name in required_attnames)
+                name = f"{self.KWARGS_TYPED_DICT_NAME.format(model_name=model_name)}{suffix}"
+            else:
+                name = self.KWARGS_TYPED_DICT_NAME.format(model_name=model_name)
+            variants.append(
+                (
+                    name,
+                    [
+                        attr
+                        for index, field_options in zip(field_option_indexes, attribute_options)
+                        for attr in field_options[index]
+                    ],
                 )
             )
+        return variants
 
-        return class_defs
+    def get_field_set_annotation(self, field: Field) -> str:
+        field_set_type = next(
+            (v for k, v in FIELD_SET_TYPES_MAP.items() if issubclass(type(field), k)),
+            FieldType(type="Any", typing_imports=["Any"]),
+        )
+
+        self.add_typing_imports(field_set_type.get("typing_imports", []))
+        if extra_imports := field_set_type.get("extra_imports"):
+            imports = AddImportsVisitor._get_imports_from_context(self.context)
+            imports.extend(extra_imports)
+            self.context.scratch[AddImportsVisitor.CONTEXT_KEY] = imports
+
+        return field_set_type["type"]
 
     def mutate_FunctionDef(self, original_node: cst.FunctionDef, updated_node: cst.FunctionDef) -> FlattenFunctionDef:
         class_name = self.get_metadata(ScopeProvider, original_node).name
@@ -207,16 +296,15 @@ class ModelCreationBaseCodemod(StubVisitorBasedCodemod, ABC):
                 annotation=cst.Annotation(annotation),
             )
 
-            overload_ = overload_.with_deep_changes(
-                old_node=overload_.params.star_kwarg,
-                annotation=cst.Annotation(
-                    annotation=helpers.parse_template_expression(
-                        f"Unpack[{self.KWARGS_TYPED_DICT_NAME}]".format(model_name=model_name)
+            for kwargs_name in self.model_kwargs_names[model_name]:
+                overloads.append(
+                    overload_.with_deep_changes(
+                        old_node=overload_.params.star_kwarg,
+                        annotation=cst.Annotation(
+                            annotation=helpers.parse_template_expression(f"Unpack[{kwargs_name}]")
+                        ),
                     )
-                ),
-            )
-
-            overloads.append(overload_)
+                )
 
         return cst.FlattenSentinel(overloads)
 

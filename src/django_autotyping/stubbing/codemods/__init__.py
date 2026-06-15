@@ -8,19 +8,25 @@ from .auth_functions_codemod import AuthFunctionsCodemod
 from .base import StubVisitorBasedCodemod
 from .call_command_codemod import CallCommandCodemod
 from .create_overload_codemod import CreateOverloadCodemod
+from .drf_test_client_codemod import DRFTestClientCodemod
 from .forward_relation_overload_codemod import ForwardRelationOverloadCodemod
+from .generic_view_attrs_codemod import GenericViewAttrsCodemod
 from .get_model_overload_codemod import GetModelOverloadCodemod
 from .model_init_overload_codemod import ModelInitOverloadCodemod
 from .query_lookups_overload_codemod import QueryLookupsOverloadCodemod
 from .reverse_overload_codemod import ReverseOverloadCodemod
 from .settings_codemod import SettingCodemod
 from .template_loading_codemod import TemplateLoadingCodemod
+from .test_case_codemod import TestCaseCodemod
+from .test_context_codemod import TestContextCodemod
 
 __all__ = (
     "AuthFunctionsCodemod",
     "CallCommandCodemod",
     "CreateOverloadCodemod",
+    "DRFTestClientCodemod",
     "ForwardRelationOverloadCodemod",
+    "GenericViewAttrsCodemod",
     "GetModelOverloadCodemod",
     "QueryLookupsOverloadCodemod",
     "ReverseOverloadCodemod",
@@ -28,11 +34,26 @@ __all__ = (
     "SettingCodemod",
     "StubVisitorBasedCodemod",
     "TemplateLoadingCodemod",
+    "TestCaseCodemod",
+    "TestContextCodemod",
     "gather_codemods",
     "rules",
 )
 
-RulesT: TypeAlias = Literal["DJAS001", "DJAS002", "DJAS003", "DJAS010", "DJAS011", "DJAS015", "DJAS016", "DJAS017"]
+RulesT: TypeAlias = Literal[
+    "DJAS001",
+    "DJAS002",
+    "DJAS003",
+    "DJAS010",
+    "DJAS011",
+    "DJAS015",
+    "DJAS016",
+    "DJAS017",
+    "DJAS018",
+    "DJAS019",
+    "DJAS020",
+    "DJAS021",
+]
 
 rules: list[tuple[RulesT, type[StubVisitorBasedCodemod]]] = [
     ("DJAS001", ForwardRelationOverloadCodemod),
@@ -44,6 +65,10 @@ rules: list[tuple[RulesT, type[StubVisitorBasedCodemod]]] = [
     ("DJAS015", ReverseOverloadCodemod),
     ("DJAS016", SettingCodemod),
     ("DJAS017", TemplateLoadingCodemod),
+    ("DJAS018", DRFTestClientCodemod),
+    ("DJAS019", TestContextCodemod),
+    ("DJAS020", TestCaseCodemod),
+    ("DJAS021", GenericViewAttrsCodemod),
     # ("DJAS017", CallCommandCodemod),
 ]
 
