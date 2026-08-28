@@ -1189,6 +1189,23 @@ def _is_class_definition(line: str, class_name: str) -> bool:
     return line.startswith((f"class {class_name}(", f"class {class_name}:"))
 
 
+def _model_base_annotation(node: ast.ClassDef, module: ModuleType, planner: ImportPlanner) -> str:
+    """Preserve abstract/concrete model bases so subclasses typecheck as their parent."""
+    for base in node.bases:
+        resolved: object | None = None
+        if isinstance(base, ast.Name):
+            resolved = getattr(module, base.id, None)
+        elif isinstance(base, ast.Attribute) and isinstance(base.value, ast.Name) and base.value.id == "models":
+            continue
+        if inspect.isclass(resolved) and issubclass(resolved, models.Model) and resolved not in {models.Model}:
+            if resolved.__module__ == module.__name__:
+                return resolved.__name__
+            return planner.annotation_for_model(resolved, module)
+        if isinstance(base, ast.Name) and base.id not in {"Model", "object"}:
+            return base.id
+    return "models.Model"
+
+
 def _render_model_class(
     node: ast.ClassDef,
     model: ModelType,
@@ -1196,7 +1213,7 @@ def _render_model_class(
     planner: ImportPlanner,
 ) -> list[str]:
     class_name = model.__name__
-    lines = [f"class {class_name}(models.Model):"]
+    lines = [f"class {class_name}({_model_base_annotation(node, module, planner)}):"]
     members: list[str] = [
         f"objects: ClassVar[{_manager_annotation(model._meta.managers_map.get('objects'), class_name)}]",
         f"_default_manager: ClassVar[{_manager_annotation(model._default_manager, class_name)}]",
