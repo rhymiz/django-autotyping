@@ -12,9 +12,9 @@ from ._model_creation import ModelCreationBaseCodemod
 # Matchers:
 
 MANAGER_QS_CLASS_DEF_MATCHER = m.ClassDef(
-    name=m.SaveMatchedNode(m.Name("BaseManager") | m.Name("_QuerySet"), "cls_name")
+    name=m.SaveMatchedNode(m.Name("Manager") | m.Name("BaseManager") | m.Name("_QuerySet"), "cls_name")
 )
-"""Matches the `BaseManager` and `_QuerySet` class definitions."""
+"""Matches the `Manager`, `BaseManager`, and `_QuerySet` class definitions."""
 
 
 CREATE_DEF_MATCHER = m.FunctionDef(name=m.Name("create") | m.Name("acreate"))
@@ -47,7 +47,7 @@ class CreateOverloadCodemod(ModelCreationBaseCodemod):
     def get_self_annotation(self, model_name: str, class_name: str) -> cst.BaseExpression:
         if class_name == "_QuerySet":
             return helpers.parse_template_expression(f"{class_name}[{model_name}, _Row]")
-        elif class_name == "BaseManager":
+        elif class_name in {"Manager", "BaseManager"}:
             return helpers.parse_template_expression(f"{class_name}[{model_name}]")
 
     @m.call_if_inside(MANAGER_QS_CLASS_DEF_MATCHER)
@@ -55,5 +55,5 @@ class CreateOverloadCodemod(ModelCreationBaseCodemod):
     def mutate_create_FunctionDef(
         self, original_node: cst.FunctionDef, updated_node: cst.FunctionDef
     ) -> FlattenFunctionDef:
-        """Add overloads for `create`/`acreate` if in `BaseManager`/`_QuerSet`."""
+        """Add overloads for `create`/`acreate` if in `Manager`/`BaseManager`/`_QuerySet`."""
         return self.mutate_FunctionDef(original_node, updated_node)

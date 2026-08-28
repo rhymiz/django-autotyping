@@ -92,7 +92,7 @@ FIELD_SET_TYPES_MAP: dict[type[Field], FieldType] = {
 class ModelCreationBaseCodemod(StubVisitorBasedCodemod, ABC):
     """A base codemod that can be used to add overloads for model creation.
 
-    Useful for: `Model.__init__`, `BaseManager.create`.
+    Useful for: `Model.__init__`, `Manager.create`.
     """
 
     METADATA_DEPENDENCIES = {ScopeProvider}

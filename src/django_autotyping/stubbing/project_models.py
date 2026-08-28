@@ -157,7 +157,7 @@ def _render_module_stub(
         "from uuid import UUID",
         "",
         "from django.db import models",
-        "from django.db.models.manager import BaseManager, ManyToManyRelatedManager, RelatedManager",
+        "from django.db.models.manager import BaseManager, Manager, ManyToManyRelatedManager, RelatedManager",
         *planner.render_imports(),
         "",
     ]
@@ -739,6 +739,9 @@ def _remove_generic_model_manager_attrs(lines: list[str]) -> list[str]:
         "    _base_manager: ClassVar[BaseManager[Self]]",
         "    _default_manager: ClassVar[BaseManager[Self]]",
         "    objects: ClassVar[BaseManager[Self]]",
+        "    _base_manager: ClassVar[Manager[Self]]",
+        "    _default_manager: ClassVar[Manager[Self]]",
+        "    objects: ClassVar[Manager[Self]]",
     }
     return [line for line in lines if line not in generic_attrs]
 
@@ -746,7 +749,7 @@ def _remove_generic_model_manager_attrs(lines: list[str]) -> list[str]:
 def _model_manager_attr_imports(model_manager_attr_types: dict[str, set[str]]) -> list[str]:
     if not model_manager_attr_types:
         return []
-    return ["from django.db.models.manager import BaseManager"]
+    return ["from django.db.models.manager import BaseManager, Manager"]
 
 
 def _model_dynamic_attr_imports(model_attr_types: dict[str, dict[str, set[str]]]) -> list[str]:
@@ -829,7 +832,7 @@ def _render_model_manager_attr_overloads(model_manager_attr_types: dict[str, set
                 "    @overload",
                 (
                     f"    def __getattr__(cls: type[{model_name}], "
-                    f"name: Literal[{names}]) -> BaseManager[{model_name}]: ..."
+                    f"name: Literal[{names}]) -> Manager[{model_name}]: ..."
                 ),
             ]
         )
@@ -838,7 +841,7 @@ def _render_model_manager_attr_overloads(model_manager_attr_types: dict[str, set
             "    @overload",
             (
                 '    def __getattr__(cls: type[Model], name: Literal["_base_manager", "_default_manager", "objects"]) '
-                "-> BaseManager[Model]: ..."
+                "-> Manager[Model]: ..."
             ),
         ]
     )
@@ -1179,14 +1182,15 @@ def _render_model_class(
     class_name = model.__name__
     lines = [f"class {class_name}(models.Model):"]
     members: list[str] = [
-        f"objects: ClassVar[BaseManager[{class_name}]]",
-        f"_default_manager: ClassVar[BaseManager[{class_name}]]",
+        f"objects: ClassVar[Manager[{class_name}]]",
+        f"_default_manager: ClassVar[Manager[{class_name}]]",
         f"_base_manager: ClassVar[BaseManager[{class_name}]]",
     ]
     members.extend(_render_model_constants(model))
 
     for manager in model._meta.managers:
-        members.append(f"{manager.name}: ClassVar[BaseManager[{class_name}]]")
+        manager_cls = "BaseManager" if manager.name == "_base_manager" else "Manager"
+        members.append(f"{manager.name}: ClassVar[{manager_cls}[{class_name}]]")
 
     pk = model._meta.pk
     if pk is not None:
