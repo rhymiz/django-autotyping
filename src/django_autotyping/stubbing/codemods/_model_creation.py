@@ -302,6 +302,9 @@ class ModelCreationBaseCodemod(StubVisitorBasedCodemod, ABC):
                     )
                 )
 
+        # Keep a catch-all so type checkers that cannot match Unpack[TypedDict]
+        # (notably ty) still accept Manager.create(**kwargs).
+        overloads.append(updated_node.with_changes(decorators=[OVERLOAD_DECORATOR]))
         return cst.FlattenSentinel(overloads)
 
     @abstractmethod
