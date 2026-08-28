@@ -857,6 +857,8 @@ def _render_model_manager_attr_overloads(model_manager_attr_types: dict[str, set
                 '    def __getattr__(cls: type[Model], name: Literal["_base_manager", "_default_manager", "objects"]) '
                 "-> Manager[Model]: ..."
             ),
+            "    @overload",
+            "    def __getattr__(cls, name: str) -> Any: ...",
         ]
     )
     lines.append(MODEL_MANAGER_ATTRS_END)
@@ -1295,6 +1297,14 @@ def _render_simple_class_attributes(node: ast.ClassDef) -> list[str]:
     """Preserve non-field class attributes such as invitation email-skip flags."""
     members: list[str] = []
     for child in node.body:
+        if isinstance(child, ast.AnnAssign):
+            if isinstance(child.value, ast.Call) or not isinstance(child.target, ast.Name):
+                continue
+            if child.target.id.isupper():
+                continue
+            annotation = _annotation_to_string(child.annotation)
+            members.append(f"{child.target.id}: {annotation}")
+            continue
         if not isinstance(child, ast.Assign):
             continue
         if isinstance(child.value, ast.Call):
