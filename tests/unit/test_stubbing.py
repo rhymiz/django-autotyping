@@ -208,3 +208,19 @@ def test_generate_stubs_uses_cli_local_stubs_dir(monkeypatch, tmp_path):
     assert captured["run"][1] == "context"
     assert captured["run"][2].LOCAL_STUBS_DIR == local_stubs_dir
     assert captured["run"][2].SOURCE_STUBS_DIR == source_stubs_dir
+
+
+def test_upgrade_default_manager_annotations_rewrites_objects_not_base_manager():
+    from django_autotyping.stubbing.project_models import _upgrade_default_manager_annotations
+
+    source = (
+        "from django.db.models.manager import BaseManager, RelatedManager\n"
+        "    objects: ClassVar[BaseManager[Foo]]\n"
+        "    _default_manager: ClassVar[BaseManager[Foo]]\n"
+        "    _base_manager: ClassVar[BaseManager[Foo]]\n"
+    )
+    upgraded = _upgrade_default_manager_annotations(source)
+    assert "objects: ClassVar[Manager[Foo]]" in upgraded
+    assert "_default_manager: ClassVar[Manager[Foo]]" in upgraded
+    assert "_base_manager: ClassVar[BaseManager[Foo]]" in upgraded
+    assert "from django.db.models.manager import BaseManager, Manager, RelatedManager" in upgraded

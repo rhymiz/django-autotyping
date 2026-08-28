@@ -203,15 +203,14 @@ def _augment_external_model_stubs(
             if members:
                 members_by_class[model.__name__] = _dedupe(members)
 
-        if not members_by_class:
-            continue
-
-        imports = [
-            "from django.db.models.manager import ManyToManyRelatedManager, RelatedManager",
-            *planner.render_imports(),
-        ]
-        source = target_path.read_text(encoding="utf-8")
-        target_path.write_text(_inject_class_members(source, members_by_class, imports), encoding="utf-8")
+        source = _upgrade_default_manager_annotations(target_path.read_text(encoding="utf-8"))
+        if members_by_class:
+            imports = [
+                "from django.db.models.manager import ManyToManyRelatedManager, RelatedManager",
+                *planner.render_imports(),
+            ]
+            source = _inject_class_members(source, members_by_class, imports)
+        target_path.write_text(source, encoding="utf-8")
 
 
 def _augment_model_base_dynamic_attrs(
@@ -1452,6 +1451,21 @@ def _has_decorator(node: ast.FunctionDef, decorator_name: str) -> bool:
 
 def _indent_lines(lines: list[str]) -> list[str]:
     return [f"    {line}" if line else "" for line in lines]
+
+
+def _upgrade_default_manager_annotations(source: str) -> str:
+    """django-stubs 6.1 types ``objects`` as ``Manager``; older generated stubs used ``BaseManager``."""
+    upgraded = source.replace("objects: ClassVar[BaseManager[", "objects: ClassVar[Manager[")
+    upgraded = upgraded.replace("_default_manager: ClassVar[BaseManager[", "_default_manager: ClassVar[Manager[")
+    if upgraded == source:
+        return source
+    if "from django.db.models.manager import BaseManager, Manager" in upgraded:
+        return upgraded
+    return upgraded.replace(
+        "from django.db.models.manager import BaseManager",
+        "from django.db.models.manager import BaseManager, Manager",
+        1,
+    )
 
 
 def _dedupe(lines: list[str]) -> list[str]:
