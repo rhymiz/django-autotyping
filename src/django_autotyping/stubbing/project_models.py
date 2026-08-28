@@ -54,6 +54,7 @@ def create_project_model_stubs(
             target_path = stubs_root / module_file.relative_to(source_root).with_suffix(".pyi")
             target_path.parent.mkdir(parents=True, exist_ok=True)
             target_path.write_text(_render_module_stub(module, module_models, django_context), encoding="utf-8")
+        _write_custom_manager_module_stubs(django_context, stubs_settings, source_root)
 
     _augment_external_model_stubs(django_context, stubs_settings, source_root)
     _augment_model_base_dynamic_attrs(django_context, stubs_settings)
@@ -148,21 +149,28 @@ def _render_module_stub(
         elif isinstance(node, ast.Assign):
             body.extend(_render_assignments(node, module))
 
+    manager_stubs, manager_imports = _render_custom_manager_stubs(module_models, module)
+    typing_imports = "from typing import Any, ClassVar"
+    if manager_stubs:
+        typing_imports = "from typing import Any, ClassVar, TypeVar"
     imports = [
         "from __future__ import annotations",
         "",
         "import datetime",
         "import decimal",
-        "from typing import Any, ClassVar",
+        typing_imports,
         "from uuid import UUID",
         "",
         "from django.db import models",
         "from django.db.models.manager import BaseManager, Manager, ManyToManyRelatedManager, RelatedManager",
         *planner.render_imports(),
+        *manager_imports,
         "",
     ]
+    if manager_stubs:
+        imports.extend(["_T = TypeVar('_T', bound=models.Model)", ""])
 
-    return "\n".join(imports + body).rstrip() + "\n"
+    return "\n".join(imports + manager_stubs + body).rstrip() + "\n"
 
 
 def _augment_external_model_stubs(
@@ -818,6 +826,14 @@ def _render_model_dynamic_attr_overloads(model_attr_types: dict[str, dict[str, s
     lines = [MODEL_DYNAMIC_ATTRS_START]
     for model_name in sorted(model_attr_types):
         lines.extend(_render_dynamic_attr_overloads_for_self(model_name, model_attr_types[model_name]))
+    # ty 0.0.58+ resolves attributes on method-scoped `Self` via Model.__getattr__
+    # and will not match `self: ConcreteModel` overloads. Keep a catch-all.
+    lines.extend(
+        [
+            "    @overload",
+            "    def __getattr__(self, name: str) -> Any: ...",
+        ]
+    )
     lines.append(MODEL_DYNAMIC_ATTRS_END)
     return lines
 
@@ -1181,15 +1197,17 @@ def _render_model_class(
     class_name = model.__name__
     lines = [f"class {class_name}(models.Model):"]
     members: list[str] = [
-        f"objects: ClassVar[Manager[{class_name}]]",
-        f"_default_manager: ClassVar[Manager[{class_name}]]",
+        f"objects: ClassVar[{_manager_annotation(model._meta.managers_map.get('objects'), class_name)}]",
+        f"_default_manager: ClassVar[{_manager_annotation(model._default_manager, class_name)}]",
         f"_base_manager: ClassVar[BaseManager[{class_name}]]",
     ]
     members.extend(_render_model_constants(model))
+    members.extend(_render_simple_class_attributes(node))
 
     for manager in model._meta.managers:
-        manager_cls = "BaseManager" if manager.name == "_base_manager" else "Manager"
-        members.append(f"{manager.name}: ClassVar[{manager_cls}[{class_name}]]")
+        if manager.name in {"objects", "_default_manager", "_base_manager"}:
+            continue
+        members.append(f"{manager.name}: ClassVar[{_manager_annotation(manager, class_name)}]")
 
     pk = model._meta.pk
     if pk is not None:
@@ -1222,6 +1240,120 @@ def _render_model_class(
     lines.extend(_indent_lines(_dedupe(members)) or ["    ..."])
     lines.append("")
     return lines
+
+
+_DEFAULT_MANAGER_TYPES = {models.Manager}
+
+
+def _write_custom_manager_module_stubs(
+    django_context: DjangoStubbingContext,
+    stubs_settings: StubsGenerationSettings,
+    source_root: Path,
+) -> None:
+    """Write stubs for custom manager classes that live outside models modules."""
+    stubs_root = stubs_settings.MODEL_STUBS_DIR
+    if stubs_root is None:
+        return
+    by_module: dict[ModuleType, set[type]] = defaultdict(set)
+    for model in django_context.models:
+        for manager in (*model._meta.managers, model._default_manager):
+            manager_type = _custom_manager_type(manager)
+            if manager_type is None:
+                continue
+            module = inspect.getmodule(manager_type)
+            module_file = _module_file(module)
+            if module is None or module_file is None or not _is_relative_to(module_file, source_root):
+                continue
+            by_module[module].add(manager_type)
+
+    for module, manager_types in by_module.items():
+        module_file = _module_file(module)
+        if module_file is None:
+            continue
+        target_path = stubs_root.resolve() / module_file.relative_to(source_root).with_suffix(".pyi")
+        if target_path.exists() and target_path.stem == "models":
+            continue
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        lines = [
+            "from __future__ import annotations",
+            "",
+            "from typing import Any, TypeVar",
+            "",
+            "from django.db import models",
+            "from django.db.models.manager import Manager",
+            "",
+            "_T = TypeVar('_T', bound=models.Model)",
+            "",
+        ]
+        for manager_type in sorted(manager_types, key=lambda item: item.__name__):
+            lines.extend(_render_custom_manager_class(manager_type))
+        target_path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+
+
+def _custom_manager_type(manager: models.Manager | None) -> type | None:
+    if manager is None:
+        return None
+    manager_type = type(manager)
+    if manager_type in _DEFAULT_MANAGER_TYPES:
+        return None
+    if manager_type.__module__.startswith("django.db.models"):
+        return None
+    return manager_type
+
+
+def _manager_annotation(manager: models.Manager | None, class_name: str) -> str:
+    manager_type = _custom_manager_type(manager)
+    if manager_type is None:
+        return f"Manager[{class_name}]"
+    return f"{manager_type.__name__}[{class_name}]"
+
+
+def _render_custom_manager_stubs(module_models: list[ModelType], module: ModuleType) -> tuple[list[str], list[str]]:
+    """Emit stubs for custom managers defined in this module, import the rest."""
+    stubs: list[str] = []
+    imports: list[str] = []
+    seen: set[type] = set()
+    for model in module_models:
+        for manager in (*model._meta.managers, model._default_manager):
+            manager_type = _custom_manager_type(manager)
+            if manager_type is None or manager_type in seen:
+                continue
+            seen.add(manager_type)
+            if inspect.getmodule(manager_type) is module:
+                stubs.extend(_render_custom_manager_class(manager_type))
+            else:
+                manager_module = inspect.getmodule(manager_type)
+                if manager_module is not None:
+                    imports.append(f"from {manager_module.__name__} import {manager_type.__name__}")
+    return stubs, imports
+
+
+def _render_custom_manager_class(manager_type: type) -> list[str]:
+    methods: list[str] = []
+    skip = {"get_queryset", "contribute_to_class", "check", "deconstruct", "from_queryset", "db_manager"}
+    for name, value in vars(manager_type).items():
+        if name.startswith("_") or name in skip:
+            continue
+        if callable(value) or isinstance(value, (classmethod, staticmethod)):
+            methods.append(f"    def {name}(self, *args: Any, **kwargs: Any) -> Any: ...")
+    lines = [f"class {manager_type.__name__}(Manager[_T]):"]
+    lines.extend(methods or ["    ..."])
+    lines.append("")
+    return lines
+
+
+def _render_simple_class_attributes(node: ast.ClassDef) -> list[str]:
+    """Preserve non-field class attributes such as invitation email-skip flags."""
+    members: list[str] = []
+    for child in node.body:
+        if not isinstance(child, ast.Assign):
+            continue
+        if isinstance(child.value, ast.Call):
+            continue
+        for target in child.targets:
+            if isinstance(target, ast.Name) and not target.id.isupper():
+                members.append(f"{target.id}: Any")
+    return members
 
 
 def _render_model_constants(model: ModelType) -> list[str]:
@@ -1401,6 +1533,14 @@ def _render_methods(node: ast.ClassDef) -> list[str]:
             members.append(f"{child.name}: Any")
             continue
         return_type = "str" if child.name == "__str__" else "Any"
+        if _has_decorator(child, "classmethod"):
+            members.append("@classmethod")
+            members.append(f"def {child.name}(cls, *args: Any, **kwargs: Any) -> {return_type}: ...")
+            continue
+        if _has_decorator(child, "staticmethod"):
+            members.append("@staticmethod")
+            members.append(f"def {child.name}(*args: Any, **kwargs: Any) -> {return_type}: ...")
+            continue
         members.append(f"def {child.name}(self, *args: Any, **kwargs: Any) -> {return_type}: ...")
     return members
 
