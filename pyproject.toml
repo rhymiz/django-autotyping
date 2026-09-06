@@ -56,6 +56,7 @@ test = [
     "pytest==7.4.3",
     "tox==4.55.1",
     "tox-gh-actions==3.5.0",
+    "psycopg[binary]>=3.2,<4",
 ]
 
 [project.urls]

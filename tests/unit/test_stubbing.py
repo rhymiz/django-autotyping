@@ -1,11 +1,15 @@
 import importlib
 import os
+import subprocess
 import sys
 from pathlib import Path
 
 import libcst as cst
+import pytest
 from django.conf import ENVIRONMENT_VARIABLE as DJANGO_SETTINGS_MODULE_ENV_KEY
 from django.conf import settings
+from django.contrib.postgres.fields import ArrayField
+from django.db import models
 
 from django_autotyping.app_settings import StubsGenerationSettings
 from django_autotyping.codemodding.codemods.base import BaseVisitorBasedCodemod
@@ -18,9 +22,65 @@ from django_autotyping.stubbing import (
 from django_autotyping.stubbing.codemods.base import StubVisitorBasedCodemod
 from django_autotyping.stubbing.codemods.forward_relation_overload_codemod import _related_field_fallback_overload
 from django_autotyping.stubbing.project_models import (
+    ImportPlanner,
+    _render_field_attributes,
     _render_foreign_key_string_overloads,
     _render_many_to_many_string_overloads,
 )
+
+
+class CustomArrayField(ArrayField):
+    pass
+
+
+@pytest.mark.parametrize(
+    ("field", "annotation"),
+    [
+        (ArrayField(models.CharField(max_length=100)), "list[str]"),
+        (ArrayField(models.IntegerField()), "list[int]"),
+        (ArrayField(models.IntegerField(null=True), null=True), "list[int | None] | None"),
+        (
+            ArrayField(ArrayField(models.CharField(null=True), null=True), null=True),
+            "list[list[str | None] | None] | None",
+        ),
+        (ArrayField(models.UUIDField()), "list[UUID]"),
+        (ArrayField(models.DateTimeField()), "list[datetime.datetime]"),
+        (CustomArrayField(models.BooleanField()), "list[bool]"),
+    ],
+)
+def test_array_model_attributes_preserve_element_types_and_nullability(field, annotation):
+    field.set_attributes_from_name("values")
+    assert _render_field_attributes(field, sys.modules[__name__], ImportPlanner()) == [f"values: {annotation}"]
+
+
+def test_generation_modules_load_without_a_postgresql_driver():
+    """PostgreSQL support must not add a driver requirement to other projects."""
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            """
+import importlib.abc
+import sys
+
+class MissingDrivers(importlib.abc.MetaPathFinder):
+    def find_spec(self, fullname, path=None, target=None):
+        if fullname.split('.')[0] in {'psycopg', 'psycopg2'}:
+            raise ModuleNotFoundError(fullname, name=fullname)
+
+sys.meta_path.insert(0, MissingDrivers())
+from django.db import models
+from django_autotyping._compat import postgres_fields
+from django_autotyping.stubbing.project_models import ImportPlanner, _field_value_type
+assert postgres_fields is None
+assert _field_value_type(models.IntegerField(), sys.modules[__name__], ImportPlanner()) == 'int'
+""",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
 
 
 class Distribution:

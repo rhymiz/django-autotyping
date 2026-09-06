@@ -27,7 +27,7 @@ from libcst.codemod import CodemodContext
 from libcst.codemod.visitors import AddImportsVisitor, ImportItem
 from libcst.metadata import ScopeProvider
 
-from django_autotyping._compat import Required
+from django_autotyping._compat import Required, postgres_fields
 from django_autotyping.typing import FlattenFunctionDef
 
 from ._utils import TypedDictAttribute, build_typed_dict, get_param, to_pascal
@@ -262,6 +262,13 @@ class ModelCreationBaseCodemod(StubVisitorBasedCodemod, ABC):
         return variants
 
     def get_field_set_annotation(self, field: Field) -> str:
+        if postgres_fields is not None and isinstance(field, postgres_fields.ArrayField):
+            element_type = self.get_field_set_annotation(field.base_field)
+            if field.base_field.null:
+                element_type += " | None"
+            self.add_typing_imports(["Sequence"])
+            return f"Sequence[{element_type}] | Combinable"
+
         field_set_type = next(
             (v for k, v in FIELD_SET_TYPES_MAP.items() if issubclass(type(field), k)),
             FieldType(type="Any", typing_imports=["Any"]),

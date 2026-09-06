@@ -12,6 +12,7 @@ from django.core.exceptions import ImproperlyConfigured
 from django.db import models
 from django.db.models.fields.reverse_related import ForeignObjectRel, ManyToManyRel, OneToOneRel
 
+from django_autotyping._compat import postgres_fields
 from django_autotyping.app_settings import StubsGenerationSettings
 from django_autotyping.typing import ModelType
 
@@ -1368,6 +1369,12 @@ def _render_field_attributes(field: models.Field, module: ModuleType, planner: I
 
 
 def _field_value_type(field: models.Field, module: ModuleType, planner: ImportPlanner) -> str:
+    if postgres_fields is not None and isinstance(field, postgres_fields.ArrayField):
+        element_type = _field_value_type(field.base_field, module, planner)
+        if field.base_field.null:
+            element_type += " | None"
+        return f"list[{element_type}]"
+
     if isinstance(field, (models.ForeignKey, models.OneToOneField)) and not isinstance(field.remote_field.model, str):
         return planner.annotation_for_model(field.remote_field.model._meta.concrete_model, module)
 

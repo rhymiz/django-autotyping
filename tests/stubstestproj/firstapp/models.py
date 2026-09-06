@@ -1,5 +1,6 @@
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
+from django.contrib.postgres.fields import ArrayField
 from django.db import models
 from zoneinfo import ZoneInfo
 
@@ -64,6 +65,12 @@ class AllFieldsModel(models.Model):
     datetime_field = models.DateTimeField()
     time_field = models.TimeField()
     uuid_field = models.UUIDField()
+
+
+class ArrayFieldsModel(models.Model):
+    strings = ArrayField(models.CharField(max_length=100))
+    numbers = ArrayField(models.IntegerField(null=True), null=True)
+    nested = ArrayField(ArrayField(models.UUIDField(null=True), null=True), null=True)
 
 class ForeignKeyModel(models.Model):
     model_one = models.ForeignKey("firstapp.ModelOne", on_delete=models.CASCADE)
