@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable, TypedDict
+from typing import TypedDict
 
 from django.template.backends.base import BaseEngine
 from django.template.backends.django import DjangoTemplates

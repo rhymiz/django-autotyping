@@ -63,7 +63,7 @@ AllFieldsModel.objects.create(decimal_field="1")
 
 AllFieldsModel(text_field="")
 AllFieldsModel.objects.create(text_field="")
-AllFieldsModel(text_field=1)  # type: ignore
+AllFieldsModel(text_field=1)  # Accepted by the **kwargs catch-all overload kept for ty.
 AllFieldsModel.objects.create(text_field=1)
 
 AllFieldsModel(boolean_field=False)
@@ -103,12 +103,12 @@ ForeignKeyModel(model_one_null=ModelOne())
 ForeignKeyModel.objects.create(model_one_null=ModelOne())
 ForeignKeyModel(model_one_null_id=1)
 ForeignKeyModel.objects.create(model_one_null_id=1)
-ForeignKeyModel(model_one=None)  # type: ignore
+ForeignKeyModel(model_one=None)  # Accepted by the **kwargs catch-all overload kept for ty.
 ForeignKeyModel.objects.create(model_one=None)
 ForeignKeyModel(model_one_null=None)
 ForeignKeyModel.objects.create(model_one_null=None)
 ForeignKeyModel(model_one_null_id=None)
 ForeignKeyModel.objects.create(model_one_null_id=None)
 
-AltNameModel(field="")  # type: ignore
+AltNameModel(field="")  # Accepted by the **kwargs catch-all overload kept for ty.
 AltNameModel(alt_name="")

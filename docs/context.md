@@ -21,7 +21,9 @@ The most common (and probably annoying) example appears when dealing with models
 ```python
 from django.db import models
 
+
 class Blog(models.Model): ...
+
 
 class BlogPost(models.Model):
     name = models.CharField(
@@ -111,6 +113,7 @@ references to your models for example.
             to="Blog",
             on_delete=models.CASCADE,
         )
+
 
     BlogPost().blog  # typed as "Blog", or "Blog | None" if null was set to `True`
     ```

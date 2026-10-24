@@ -2,11 +2,9 @@ from __future__ import annotations
 
 from os import PathLike
 from textwrap import dedent
-from typing import Any, TypedDict
+from typing import Any, Required, TypedDict
 
 from libcst.codemod.visitors import ImportItem
-
-from django_autotyping._compat import Required
 
 
 class SettingTypingConfiguration(TypedDict, total=False):

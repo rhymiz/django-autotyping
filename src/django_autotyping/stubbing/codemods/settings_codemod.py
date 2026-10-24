@@ -2,14 +2,13 @@ from __future__ import annotations
 
 import inspect
 import warnings
+from types import NoneType
 
 import libcst as cst
 import libcst.matchers as m
 from django import VERSION as DJANGO_VERSION
 from libcst import helpers
 from libcst.codemod.visitors import AddImportsVisitor
-
-from django_autotyping._compat import NoneType
 
 from ._global_settings_types import GLOBAL_SETTINGS, SettingTypingConfiguration
 from ._utils import _indent

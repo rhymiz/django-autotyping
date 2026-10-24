@@ -2,13 +2,12 @@ from __future__ import annotations
 
 import dataclasses
 from pathlib import Path
-from typing import Any
+from typing import Any, Unpack
 
 from django.apps import apps
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandParser
 
-from django_autotyping._compat import Unpack
 from django_autotyping.app_settings import AutotypingSettings
 from django_autotyping.stubbing import (
     create_local_django_stubs,

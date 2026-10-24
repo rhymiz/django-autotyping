@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from abc import ABC
-from typing import TYPE_CHECKING, ClassVar, Sequence, TypeVar, cast
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, ClassVar, TypeVar, cast
 
 import libcst as cst
 import libcst.matchers as m

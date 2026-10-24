@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import os
 import sys
+from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING, Iterator
+from typing import TYPE_CHECKING
 
+from django.apps import apps
 from django.conf import ENVIRONMENT_VARIABLE as DJANGO_SETTINGS_MODULE_ENV_KEY
+from django.conf import settings
 
 if TYPE_CHECKING:
     from django.apps.registry import Apps
@@ -30,9 +33,6 @@ def initialize_django(settings_module: str, app_path: Path) -> tuple[Apps, LazyS
 
         # Patching `sys.path` to allow Django to setup correctly
         sys.path.append(str(app_path))
-
-        from django.apps import apps
-        from django.conf import settings
 
         apps.get_swappable_settings_name.cache_clear()
         apps.clear_cache()

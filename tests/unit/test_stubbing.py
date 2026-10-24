@@ -26,6 +26,7 @@ from django_autotyping.stubbing.project_models import (
     _render_field_attributes,
     _render_foreign_key_string_overloads,
     _render_many_to_many_string_overloads,
+    _upgrade_default_manager_annotations,
 )
 
 
@@ -271,8 +272,6 @@ def test_generate_stubs_uses_cli_local_stubs_dir(monkeypatch, tmp_path):
 
 
 def test_upgrade_default_manager_annotations_rewrites_objects_not_base_manager():
-    from django_autotyping.stubbing.project_models import _upgrade_default_manager_annotations
-
     source = (
         "from django.db.models.manager import BaseManager, RelatedManager\n"
         "    objects: ClassVar[BaseManager[Foo]]\n"

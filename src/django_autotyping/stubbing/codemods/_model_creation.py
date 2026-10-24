@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from itertools import product
-from typing import ClassVar, TypedDict, cast
+from typing import ClassVar, Required, TypedDict, cast
 
 import libcst as cst
 from django.db.models import (
@@ -27,7 +27,7 @@ from libcst.codemod import CodemodContext
 from libcst.codemod.visitors import AddImportsVisitor, ImportItem
 from libcst.metadata import ScopeProvider
 
-from django_autotyping._compat import Required, postgres_fields
+from django_autotyping._compat import postgres_fields
 from django_autotyping.typing import FlattenFunctionDef
 
 from ._utils import TypedDictAttribute, build_typed_dict, get_param, to_pascal
@@ -124,7 +124,8 @@ class ModelCreationBaseCodemod(StubVisitorBasedCodemod, ABC):
 
         generic_foreign_key_cls = None
         if self.django_context.apps.is_installed("django.contrib.contenttypes"):
-            from django.contrib.contenttypes.fields import GenericForeignKey
+            # Importing contenttypes fields loads the ContentType model, so it must wait for the app registry.
+            from django.contrib.contenttypes.fields import GenericForeignKey  # noqa: PLC0415
 
             generic_foreign_key_cls = GenericForeignKey
         all_optional = self.stubs_settings.MODEL_FIELDS_OPTIONAL
@@ -240,7 +241,7 @@ class ModelCreationBaseCodemod(StubVisitorBasedCodemod, ABC):
         for field_option_indexes in product(*(range(len(options)) for options in attribute_options)):
             required_attnames = [
                 attr.name
-                for index, field_options in zip(field_option_indexes, attribute_options)
+                for index, field_options in zip(field_option_indexes, attribute_options, strict=True)
                 for attr in field_options[index]
                 if attr.required and field_options[index] is not field_options[0]
             ]
@@ -254,7 +255,7 @@ class ModelCreationBaseCodemod(StubVisitorBasedCodemod, ABC):
                     name,
                     [
                         attr
-                        for index, field_options in zip(field_option_indexes, attribute_options)
+                        for index, field_options in zip(field_option_indexes, attribute_options, strict=True)
                         for attr in field_options[index]
                     ],
                 )

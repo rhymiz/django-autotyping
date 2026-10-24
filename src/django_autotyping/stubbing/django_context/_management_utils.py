@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-import sys
 from argparse import (
     ONE_OR_MORE,
     SUPPRESS,
     ZERO_OR_MORE,
     Action,
+    BooleanOptionalAction,
     _AppendAction,
     _AppendConstAction,
     _CountAction,
@@ -17,24 +17,20 @@ from argparse import (
     _VersionAction,
 )
 from collections import defaultdict
+from collections.abc import Iterator
 from copy import deepcopy
 from dataclasses import dataclass, field
-from typing import Any, Iterator, Literal, cast
+from types import NoneType
+from typing import Any, Literal, Self, TypeGuard, cast
 
 from django.core.management import BaseCommand, get_commands, load_command_class
 from django.core.management.base import CommandParser
 
-from django_autotyping._compat import NoneType, Self, TypeGuard
-
 BOOL_ACTIONS: tuple[type[Action], ...] = (
     _StoreTrueAction,
     _StoreFalseAction,
+    BooleanOptionalAction,
 )
-
-if sys.version_info >= (3, 9):
-    from argparse import BooleanOptionalAction
-
-    BOOL_ACTIONS += (BooleanOptionalAction,)
 
 TYPE_MAP = {
     "str": str,
