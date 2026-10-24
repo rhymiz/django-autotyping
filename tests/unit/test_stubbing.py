@@ -6,8 +6,9 @@ from pathlib import Path
 
 import libcst as cst
 import pytest
+from django import VERSION as DJANGO_VERSION
 from django.conf import ENVIRONMENT_VARIABLE as DJANGO_SETTINGS_MODULE_ENV_KEY
-from django.conf import settings
+from django.conf import global_settings, settings
 from django.contrib.postgres.fields import ArrayField
 from django.db import models
 
@@ -19,8 +20,10 @@ from django_autotyping.stubbing import (
     create_local_rest_framework_stubs,
     run_codemods,
 )
+from django_autotyping.stubbing.codemods._global_settings_types import GLOBAL_SETTINGS
 from django_autotyping.stubbing.codemods.base import StubVisitorBasedCodemod
 from django_autotyping.stubbing.codemods.forward_relation_overload_codemod import _related_field_fallback_overload
+from django_autotyping.stubbing.codemods.settings_codemod import _is_available
 from django_autotyping.stubbing.project_models import (
     ImportPlanner,
     _render_field_attributes,
@@ -283,3 +286,35 @@ def test_upgrade_default_manager_annotations_rewrites_objects_not_base_manager()
     assert "_default_manager: ClassVar[Manager[Foo]]" in upgraded
     assert "_base_manager: ClassVar[BaseManager[Foo]]" in upgraded
     assert "from django.db.models.manager import BaseManager, Manager, RelatedManager" in upgraded
+
+
+def test_global_settings_table_matches_running_django():
+    defined = {name for name in dir(global_settings) if name.isupper()}
+    version = DJANGO_VERSION[:3]
+    available = {name for name, conf in GLOBAL_SETTINGS.items() if _is_available(conf, version)}
+    with_default = {name for name in available if not GLOBAL_SETTINGS[name].get("no_default")}
+
+    assert with_default == defined
+    assert not (available - with_default) & defined
+
+
+@pytest.mark.parametrize(
+    ["version", "expected"],
+    [
+        ((5, 2, 14), False),
+        ((5, 2, 15), True),
+        ((6, 0, 5), False),
+        ((6, 0, 6), True),
+        ((6, 1, 0), True),
+        ((6, 2, 0), True),
+    ],
+)
+def test_is_available_honors_backports(version, expected):
+    conf = {"type": "bool", "added_in": (6, 1, 0), "backported_in": [(5, 2, 15), (6, 0, 6)]}
+
+    assert _is_available(conf, version) is expected
+
+
+@pytest.mark.parametrize(["version", "expected"], [((5, 2, 18), True), ((6, 0, 0), False)])
+def test_is_available_honors_removal(version, expected):
+    assert _is_available({"type": "bool", "removed_in": (6, 0, 0)}, version) is expected

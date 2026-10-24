@@ -25,7 +25,7 @@ DEPRECATED_SETTING_NO_DOCSTRING = """
 def {setting_name}(self) -> {type}: ...
 """.strip()
 
-DEPRECATED_SETTING_NO_DOCSTRING = """
+DEPRECATED_SETTING_DOCSTRING = """
 @property
 @deprecated({message})
 def {setting_name}(self) -> {type}:
@@ -37,6 +37,17 @@ TYPE_MAP = {
     str: "str",
     NoneType: "Literal[None]",
 }
+
+
+def _is_available(setting_typing_conf: SettingTypingConfiguration, version: tuple[int, int, int]) -> bool:
+    """Whether the setting exists in the given Django version."""
+    if setting_typing_conf.get("removed_in", (float("inf"),)) <= version:
+        return False
+    if setting_typing_conf.get("added_in", (0,)) <= version:
+        return True
+    return any(
+        backport[:2] == version[:2] and backport <= version for backport in setting_typing_conf.get("backported_in", [])
+    )
 
 
 class SettingCodemod(StubVisitorBasedCodemod):
@@ -80,15 +91,15 @@ class SettingCodemod(StubVisitorBasedCodemod):
                     DEPRECATED_SETTING_NO_DOCSTRING,
                     message=cst.SimpleString(f'"{setting_typing_conf.get("deprecated_message", "")}"'),
                     setting_name=cst.Name(setting_name),
-                    type=cst.Annotation(cst.Name(setting_typing_conf["type"])),
+                    type=cst.Annotation(helpers.parse_template_expression(setting_typing_conf["type"])),
                 )
             else:
                 _docstring = f'"""{_indent(docstring.strip(), indent_size=2)}"""'
                 stmt = helpers.parse_template_statement(
-                    DEPRECATED_SETTING_NO_DOCSTRING,
+                    DEPRECATED_SETTING_DOCSTRING,
                     message=cst.SimpleString(f'"{setting_typing_conf.get("deprecated_message", "")}"'),
                     setting_name=cst.Name(setting_name),
-                    type=cst.Annotation(cst.Name(setting_typing_conf["type"])),
+                    type=cst.Annotation(helpers.parse_template_expression(setting_typing_conf["type"])),
                     docstring=cst.SimpleString(_docstring),
                 )
 
@@ -128,10 +139,8 @@ class SettingCodemod(StubVisitorBasedCodemod):
         custom_settings = {k: v for k, v in all_settings.items() if k not in GLOBAL_SETTINGS}
 
         for setting_name, setting_typing_conf in GLOBAL_SETTINGS.items():
-            if (
-                (setting_typing_conf.get("no_default") and setting_name not in all_settings)
-                or setting_typing_conf.get("added_in", (0,)) > DJANGO_VERSION
-                or setting_typing_conf.get("removed_in", (float("inf"),)) <= DJANGO_VERSION
+            if (setting_typing_conf.get("no_default") and setting_name not in all_settings) or not _is_available(
+                setting_typing_conf, DJANGO_VERSION[:3]
             ):
                 continue
 

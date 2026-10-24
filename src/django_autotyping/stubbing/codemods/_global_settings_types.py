@@ -29,6 +29,9 @@ class SettingTypingConfiguration(TypedDict, total=False):
     added_in: tuple[int, int, int]
     """The Django version this setting was added."""
 
+    backported_in: list[tuple[int, int, int]]
+    """Patch releases of earlier release series that also ship this setting (e.g. security backports)."""
+
     removed_in: tuple[int, int, int]
     """The Django version this setting was removed."""
 
@@ -542,6 +545,53 @@ class _StorageSetting(TypedDict, total=False):
     BACKEND: Required[str]
 
     OPTIONS: dict[str, Any]
+
+
+class _MailerSetting(TypedDict, total=False):
+    BACKEND: str
+    """Default: ``"django.core.mail.backends.smtp.EmailBackend"``
+
+    The Python import path to the email backend class. If ``"BACKEND"`` is omitted,
+    Django's :ref:`topic-email-smtp-backend` is used.
+    """
+
+    OPTIONS: dict[str, Any]
+    """Default: ``{}``
+
+    Configuration parameters to pass to the email backend. The available and
+    required options vary depending on the backend.
+    """
+
+
+class _TaskBackendSetting(TypedDict, total=False):
+    BACKEND: Required[str]
+    """Default: ``''`` (Empty string)
+
+    The Tasks backend to use. The built-in backends are:
+
+    * ``'django.tasks.backends.dummy.DummyBackend'``
+    * ``'django.tasks.backends.immediate.ImmediateBackend'``
+
+    You can use a backend that doesn't ship with Django by setting
+    :setting:`BACKEND <TASKS-BACKEND>` to a fully-qualified path of a backend
+    class (i.e. ``mypackage.backends.whatever.WhateverBackend``).
+    """
+
+    QUEUES: list[str]
+    """Default: ``["default"]``
+
+    Specify the queue names supported by the backend. This can be used to ensure
+    Tasks aren't enqueued to queues which do not exist.
+
+    To disable queue name validation, set to an empty list (``[]``).
+    """
+
+    OPTIONS: dict[str, Any]
+    """Default: ``{}``
+
+    Extra parameters to pass to the Task backend. Available parameters vary
+    depending on the Task backend.
+    """
 
 
 class _TemplateSetting(TypedDict, total=False):
@@ -1397,6 +1447,8 @@ GLOBAL_SETTINGS: dict[str, SettingTypingConfiguration] = {
             """
         ),
         "type": "str",
+        "deprecated_since": (6, 1, 0),
+        "deprecated_message": "The EMAIL_BACKEND setting is deprecated. Migrate to MAILERS before Django 2028.",
     },
     "EMAIL_FILE_PATH": {
         "docs": dedent(
@@ -1409,6 +1461,8 @@ GLOBAL_SETTINGS: dict[str, SettingTypingConfiguration] = {
         ),
         "type": "Any",  # TODO what type?
         "no_default": True,
+        "deprecated_since": (6, 1, 0),
+        "deprecated_message": "The EMAIL_FILE_PATH setting is deprecated. Migrate to MAILERS before Django 2028.",
     },
     "EMAIL_HOST": {
         "docs": dedent(
@@ -1421,6 +1475,8 @@ GLOBAL_SETTINGS: dict[str, SettingTypingConfiguration] = {
             """
         ),
         "type": "str",
+        "deprecated_since": (6, 1, 0),
+        "deprecated_message": "The EMAIL_HOST setting is deprecated. Migrate to MAILERS before Django 2028.",
     },
     "EMAIL_HOST_PASSWORD": {
         "docs": dedent(
@@ -1436,6 +1492,8 @@ GLOBAL_SETTINGS: dict[str, SettingTypingConfiguration] = {
             """
         ),
         "type": "str",
+        "deprecated_since": (6, 1, 0),
+        "deprecated_message": "The EMAIL_HOST_PASSWORD setting is deprecated. Migrate to MAILERS before Django 2028.",
     },
     "EMAIL_HOST_USER": {
         "docs": dedent(
@@ -1449,6 +1507,8 @@ GLOBAL_SETTINGS: dict[str, SettingTypingConfiguration] = {
             """
         ),
         "type": "str",
+        "deprecated_since": (6, 1, 0),
+        "deprecated_message": "The EMAIL_HOST_USER setting is deprecated. Migrate to MAILERS before Django 2028.",
     },
     "EMAIL_PORT": {
         "docs": dedent(
@@ -1458,7 +1518,9 @@ GLOBAL_SETTINGS: dict[str, SettingTypingConfiguration] = {
             Port to use for the SMTP server defined in :setting:`EMAIL_HOST`.
             """
         ),
-        "type": "25",
+        "type": "int",
+        "deprecated_since": (6, 1, 0),
+        "deprecated_message": "The EMAIL_PORT setting is deprecated. Migrate to MAILERS before Django 2028.",
     },
     "EMAIL_SUBJECT_PREFIX": {
         "docs": dedent(
@@ -1495,6 +1557,8 @@ GLOBAL_SETTINGS: dict[str, SettingTypingConfiguration] = {
             """
         ),
         "type": "bool",
+        "deprecated_since": (6, 1, 0),
+        "deprecated_message": "The EMAIL_USE_TLS setting is deprecated. Migrate to MAILERS before Django 2028.",
     },
     "EMAIL_USE_SSL": {
         "docs": dedent(
@@ -1511,6 +1575,8 @@ GLOBAL_SETTINGS: dict[str, SettingTypingConfiguration] = {
             """
         ),
         "type": "bool",
+        "deprecated_since": (6, 1, 0),
+        "deprecated_message": "The EMAIL_USE_SSL setting is deprecated. Migrate to MAILERS before Django 2028.",
     },
     "EMAIL_SSL_CERTFILE": {
         "docs": dedent(
@@ -1524,6 +1590,8 @@ GLOBAL_SETTINGS: dict[str, SettingTypingConfiguration] = {
         ),
         "type": "StrOrBytesPath | None",
         "extra_imports": [ImportItem("_typeshed", "StrOrBytesPath")],
+        "deprecated_since": (6, 1, 0),
+        "deprecated_message": "The EMAIL_SSL_CERTFILE setting is deprecated. Migrate to MAILERS before Django 2028.",
     },
     "EMAIL_SSL_KEYFILE": {
         "docs": dedent(
@@ -1543,6 +1611,8 @@ GLOBAL_SETTINGS: dict[str, SettingTypingConfiguration] = {
         ),
         "type": "StrOrBytesPath | None",
         "extra_imports": [ImportItem("_typeshed", "StrOrBytesPath")],
+        "deprecated_since": (6, 1, 0),
+        "deprecated_message": "The EMAIL_SSL_KEYFILE setting is deprecated. Migrate to MAILERS before Django 2028.",
     },
     "EMAIL_TIMEOUT": {
         "docs": dedent(
@@ -1554,6 +1624,8 @@ GLOBAL_SETTINGS: dict[str, SettingTypingConfiguration] = {
             """
         ),
         "type": "int | None",
+        "deprecated_since": (6, 1, 0),
+        "deprecated_message": "The EMAIL_TIMEOUT setting is deprecated. Migrate to MAILERS before Django 2028.",
     },
     "FILE_UPLOAD_HANDLERS": {
         "docs": dedent(
@@ -2115,6 +2187,33 @@ GLOBAL_SETTINGS: dict[str, SettingTypingConfiguration] = {
         ),
         "type": "str | None",
     },
+    "MAILERS": {
+        "docs": dedent(
+            """
+            .. versionadded:: 6.1
+
+            Default: Not defined
+
+            A dictionary containing the settings for all email backends to be used with
+            Django. It is a nested dictionary that maps backend aliases to dictionaries
+            containing each mailer's backend import path and configuration options.
+
+            If you plan to send email through Django, configuring at least a ``"default"``
+            mailer is recommended. Any number of additional mailers may also be specified.
+            Depending on which backend is used, other options may be required.
+
+            Setting ``MAILERS`` to an empty dictionary (``{}``) disables email sending and
+            any attempt to send mail will raise ``MailerDoesNotExist``.
+
+            See :ref:`topic-email-configuration` for more information.
+            """
+        ),
+        "type": "dict[str, _MailerSetting]",
+        "typing_imports": ["Any", "TypedDict"],
+        "extra_definitions": [_MailerSetting],
+        "no_default": True,
+        "added_in": (6, 1, 0),
+    },
     "MANAGERS": {
         "docs": dedent(
             """
@@ -2423,6 +2522,52 @@ GLOBAL_SETTINGS: dict[str, SettingTypingConfiguration] = {
         ),
         "type": "str | None",
     },
+    "SECURE_CSP": {
+        "docs": dedent(
+            """
+            .. versionadded:: 6.0
+
+            Default: ``{}``
+
+            This setting defines the directives used by the
+            :class:`~django.middleware.csp.ContentSecurityPolicyMiddleware`, which
+            generates and adds a :ref:`Content-Security-Policy <csp-overview>` (CSP) header
+            to all responses that do not already include one.
+
+            The setting must be a mapping (typically a dictionary) of directive names to
+            their values. Each key should be a valid CSP directive such as ``default-src``
+            or ``script-src``. The corresponding value can be a list, tuple, or set of
+            source expressions or URLs to allow for that directive. If a set is used, it
+            will be automatically sorted to ensure consistent output in the generated
+            headers.
+            """
+        ),
+        "type": "Mapping[str, Collection[str] | str]",
+        "extra_imports": [ImportItem("collections.abc", "Collection"), ImportItem("collections.abc", "Mapping")],
+        "added_in": (6, 0, 0),
+    },
+    "SECURE_CSP_REPORT_ONLY": {
+        "docs": dedent(
+            """
+            .. versionadded:: 6.0
+
+            Default: ``{}``
+
+            This setting is just like :setting:`SECURE_CSP`, but instead of enforcing the
+            policy, it instructs the
+            :class:`~django.middleware.csp.ContentSecurityPolicyMiddleware` to apply a
+            ``Content-Security-Policy-Report-Only`` header to responses, which allows
+            browsers to monitor and report policy violations without blocking content. This
+            is useful for testing and refining a policy before enforcement.
+
+            To collect violation reports, the ``report-uri`` directive must be defined
+            (see :ref:`csp-reports` for more details).
+            """
+        ),
+        "type": "Mapping[str, Collection[str] | str]",
+        "extra_imports": [ImportItem("collections.abc", "Collection"), ImportItem("collections.abc", "Mapping")],
+        "added_in": (6, 0, 0),
+    },
     "SECURE_HSTS_INCLUDE_SUBDOMAINS": {
         "docs": dedent(
             """
@@ -2664,6 +2809,35 @@ GLOBAL_SETTINGS: dict[str, SettingTypingConfiguration] = {
         ),
         "type": "str",
     },
+    "SIGNED_COOKIE_LEGACY_SALT_FALLBACK": {
+        "docs": dedent(
+            """
+            .. versionadded:: 5.2.15
+
+            Default: ``False`` (``True`` before Django 6.1)
+
+            Controls whether :meth:`~django.http.HttpRequest.get_signed_cookie` accepts
+            cookies signed with Django's historical signed-cookie salt derivation based on
+            ``key + salt``.
+
+            Set this to ``True`` to accept those legacy signed cookies in addition to
+            cookies signed with Django's current unambiguous signed-cookie salt derivation.
+
+            .. deprecated:: 6.1
+
+                This transitional setting will be removed in Django 2028, when legacy
+                signed cookies will no longer be accepted.
+            """
+        ),
+        "type": "bool",
+        "added_in": (6, 1, 0),
+        "backported_in": [(5, 2, 15), (6, 0, 6)],
+        "deprecated_since": (6, 1, 0),
+        "deprecated_message": (
+            "The SIGNED_COOKIE_LEGACY_SALT_FALLBACK transitional setting is deprecated. Remove it from your "
+            "settings once legacy signed cookies have expired. They will not be accepted in Django 2028."
+        ),
+    },
     "SIGNING_BACKEND": {
         "docs": dedent(
             """
@@ -2747,6 +2921,33 @@ GLOBAL_SETTINGS: dict[str, SettingTypingConfiguration] = {
         "type": "dict[str, dict[str, _StorageSetting]]",
         "extra_definitions": [_StorageSetting],
         "typing_imports": ["Any"],
+    },
+    "TASKS": {
+        "docs": dedent(
+            """
+            .. versionadded:: 6.0
+
+            Default::
+
+                {
+                    "default": {
+                        "BACKEND": "django.tasks.backends.immediate.ImmediateBackend",
+                    }
+                }
+
+            A dictionary containing the settings for all Task backends to be used with
+            Django. It is a nested dictionary whose contents maps backend aliases to a
+            dictionary containing the options for each backend.
+
+            The :setting:`TASKS` setting must configure a ``default`` backend; any number
+            of additional backends may also be specified. Depending on which backend is
+            used, other options may be required.
+            """
+        ),
+        "type": "dict[str, _TaskBackendSetting]",
+        "typing_imports": ["Any", "TypedDict", "Required"],
+        "extra_definitions": [_TaskBackendSetting],
+        "added_in": (6, 0, 0),
     },
     "TEMPLATES": {
         "docs": dedent(
@@ -2899,6 +3100,51 @@ GLOBAL_SETTINGS: dict[str, SettingTypingConfiguration] = {
             """
         ),
         "type": "str",
+    },
+    "URLIZE_ASSUME_HTTPS": {
+        "docs": dedent(
+            """
+            .. versionadded:: 6.0
+            .. deprecated:: 6.0
+
+            Default: ``False``
+
+            Set this transitional setting to ``True`` to opt into using HTTPS as the
+            default protocol when none is provided in URLs processed by the
+            :tfilter:`urlize` and :tfilter:`urlizetrunc` template filters during the Django
+            6.x release cycle.
+            """
+        ),
+        "type": "bool",
+        "added_in": (6, 0, 0),
+        "deprecated_since": (6, 0, 0),
+        "deprecated_message": "The URLIZE_ASSUME_HTTPS transitional setting is deprecated.",
+    },
+    "USE_BLANK_CHOICE_DASH": {
+        "docs": dedent(
+            """
+            .. versionadded:: 6.1
+
+            Default: ``False``
+
+            The default blank choice label in ``Select`` widgets was changed from
+            ``"---------"`` to ``django.db.models.fields.BLANK_CHOICE_LABEL``. Set this
+            transitional setting to ``True`` to revert to the previous label.
+
+            .. deprecated:: 6.1
+
+                This setting will be removed in Django 2028. To use a custom default blank
+                choice label, override ``django.db.models.fields.BLANK_CHOICE_LABEL`` in
+                the app's ``ready()`` method.
+            """
+        ),
+        "type": "bool",
+        "added_in": (6, 1, 0),
+        "deprecated_since": (6, 1, 0),
+        "deprecated_message": (
+            "The USE_BLANK_CHOICE_DASH setting is deprecated. If you wish to define your own default blank "
+            "choice label, override django.db.models.fields.BLANK_CHOICE_LABEL in your app's ready() method."
+        ),
     },
     "USE_I18N": {
         "docs": dedent(
@@ -3187,6 +3433,7 @@ GLOBAL_SETTINGS: dict[str, SettingTypingConfiguration] = {
             """
         ),
         "type": "int",
+        "no_default": True,
     },
     "MESSAGE_STORAGE": {
         "docs": dedent(
@@ -3244,6 +3491,7 @@ GLOBAL_SETTINGS: dict[str, SettingTypingConfiguration] = {
             """
         ),
         "type": "dict[int, str]",
+        "no_default": True,
     },
     # SESSIONS:
     "SESSION_CACHE_ALIAS": {
