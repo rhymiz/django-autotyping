@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Any, Literal
 
 from typing_extensions import assert_type
 
@@ -11,3 +11,6 @@ assert_type(settings.CUSTOM_SETTING, str)
 assert_type(settings.AUTH_USER_MODEL, Literal["accounts.User"])
 
 assert_type(settings.SECURE_CROSS_ORIGIN_OPENER_POLICY, str | None)
+
+assert_type(settings.STORAGES["default"]["BACKEND"], str)
+assert_type(settings.STORAGES["default"].get("OPTIONS"), dict[str, Any] | None)
