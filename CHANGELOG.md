@@ -18,6 +18,7 @@
   `MAILERS` as deprecated on Django 6.1.
 - Fix settings stubs generation crashing for deprecated settings with non-identifier types,
   type `EMAIL_PORT` as `int`, and stop emitting `MESSAGE_LEVEL`/`MESSAGE_TAGS` unless configured.
+- Fix the `STORAGES` setting type, which had an extra level of nesting.
 
 ## 0.5.1 (2024-05-29)
 

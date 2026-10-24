@@ -2918,9 +2918,9 @@ GLOBAL_SETTINGS: dict[str, SettingTypingConfiguration] = {
                 it.
             """
         ),
-        "type": "dict[str, dict[str, _StorageSetting]]",
+        "type": "dict[str, _StorageSetting]",
         "extra_definitions": [_StorageSetting],
-        "typing_imports": ["Any"],
+        "typing_imports": ["Any", "TypedDict", "Required"],
     },
     "TASKS": {
         "docs": dedent(
