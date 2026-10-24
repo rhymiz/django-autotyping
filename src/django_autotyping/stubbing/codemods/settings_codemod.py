@@ -54,7 +54,7 @@ class SettingCodemod(StubVisitorBasedCodemod):
 
     reveal_type(settings.ADMINS)  # Revealed type is "list[tuple[str, str]]"
     reveal_type(settings.CUSTOM_SETTING)  # Revealed type is "str"
-    reveal_type(settings.USE_DEPRECATED_PYTZ)  # Will be marked as deprecated by the type checker.
+    reveal_type(settings.FORMS_URLFIELD_ASSUME_HTTPS)  # Marked as deprecated by the type checker on Django 5.2.
     ```
 
     !!! info "Experimental"

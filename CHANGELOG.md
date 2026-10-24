@@ -9,6 +9,9 @@
   model stubs now that Django installs a descriptor on the model class.
 - Test against every supported Django series (5.2 LTS, 6.0, 6.1) on Python 3.11–3.14.
 - Drop Python 3.10 support (end of life since October 2026).
+- Drop settings removed before Django 5.2 (`CSRF_COOKIE_MASKED`, `DEFAULT_FILE_STORAGE`,
+  `STATICFILES_STORAGE`, `USE_DEPRECATED_PYTZ`, `USE_L10N`) from the settings stubs, and stop
+  emitting `FORMS_URLFIELD_ASSUME_HTTPS` on Django 6.0+, where it was removed.
 
 ## 0.5.1 (2024-05-29)
 
