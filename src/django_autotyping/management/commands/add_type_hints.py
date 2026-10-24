@@ -1,15 +1,15 @@
 from __future__ import annotations
 
 import difflib
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Unpack
 
 from django.apps import apps
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandParser
 from django.utils.termcolors import colorize
 
-from django_autotyping._compat import Unpack
 from django_autotyping.app_settings import AutotypingSettings
 from django_autotyping.codemodding.codemods import RulesT, gather_codemods, rules
 from django_autotyping.codemodding.django_context import DjangoCodemodContext

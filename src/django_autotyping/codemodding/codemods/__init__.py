@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+from typing import TypeAlias
+
 __all__ = ("ForwardRelationTypingCodemod", "RulesT", "gather_codemods", "rules")
 
-from typing import Container, Literal
-
-from django_autotyping._compat import TypeAlias
+from collections.abc import Container
+from typing import Literal
 
 from .base import BaseVisitorBasedCodemod
 from .forward_relation_typing_codemod import ForwardRelationTypingCodemod

@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- Preserve PostgreSQL ArrayField element types, nesting and nullability in project
+  model attributes and model/manager creation arguments. PostgreSQL drivers remain
+  optional for projects that do not use PostgreSQL fields.
+- Support Django 6.1: `GenericForeignKey` attributes are again included in project
+  model stubs now that Django installs a descriptor on the model class.
+- Test against every supported Django series (5.2 LTS, 6.0, 6.1) on Python 3.11–3.14.
+- Drop Python 3.10 support (end of life since October 2026).
+
 ## 0.5.1 (2024-05-29)
 
 This release fixes two bugs:

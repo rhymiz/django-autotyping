@@ -60,6 +60,17 @@ def test_model_init_kwargs_are_generated_once(local_stubs, stubstestproj_context
     assert base_stubs.read_text().count("class ModelOneInitKwargs(TypedDict, total=False):") == 1
 
 
+def test_array_creation_kwargs_preserve_element_types(local_stubs, stubstestproj_context):
+    stubs_settings = StubsGenerationSettings(LOCAL_STUBS_DIR=local_stubs)
+    run_codemods(gather_codemods(include=["DJAS002", "DJAS003"]), stubstestproj_context, stubs_settings)
+
+    for filename in ("base.pyi", "manager.pyi"):
+        source = (local_stubs / "django-stubs" / "db" / "models" / filename).read_text()
+        assert "strings: Sequence[str | int | Combinable] | Combinable" in source
+        assert "numbers: Sequence[float | int | str | Combinable | None] | Combinable | None" in source
+        assert "nested: Sequence[Sequence[str | UUID | None] | Combinable | None] | Combinable | None" in source
+
+
 def test_foreign_key_attname_model_creation_kwargs(local_stubs, stubstestproj_context):
     stubs_settings = StubsGenerationSettings(LOCAL_STUBS_DIR=local_stubs)
 
@@ -231,9 +242,7 @@ def test_project_model_stubs_include_dynamic_model_attrs(tmp_path, local_stubs, 
     auth_models = local_stubs / "django-stubs" / "contrib" / "auth" / "models.pyi"
     model_base = local_stubs / "django-stubs" / "db" / "models" / "base.pyi"
 
-    assert firstapp_models.exists()
-    assert secondapp_models.exists()
-    assert auth_models.exists()
+    assert all(path.exists() for path in (firstapp_models, secondapp_models, auth_models))
 
     firstapp = firstapp_models.read_text()
     secondapp = secondapp_models.read_text()
@@ -242,6 +251,14 @@ def test_project_model_stubs_include_dynamic_model_attrs(tmp_path, local_stubs, 
 
     assert "model_two: _model_" in firstapp
     assert "model_two_id: int" in firstapp
+    assert all(
+        annotation in firstapp
+        for annotation in (
+            "strings: list[str]",
+            "numbers: list[int | None] | None",
+            "nested: list[list[UUID | None] | None] | None",
+        )
+    )
     assert "many_to_many_model_two: ManyToManyRelatedManager[" in firstapp
     assert "def default_zone(*args: Any, **kwargs: Any) -> Any: ..." in firstapp
     assert "class Meta:" in firstapp

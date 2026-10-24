@@ -1,14 +1,12 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal, Type, TypedDict
+from typing import TYPE_CHECKING, Literal, TypeAlias, TypedDict
 
 import libcst as cst
 from django.db import models
 
-from ._compat import TypeAlias
-
-ModelType = Type[models.Model]
+ModelType = type[models.Model]
 
 if TYPE_CHECKING:
     # See https://github.com/Instagram/LibCST/issues/1075

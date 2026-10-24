@@ -8,10 +8,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from types import ModuleType
 
+from django.contrib.auth import get_user_model
 from django.core.exceptions import ImproperlyConfigured
 from django.db import models
 from django.db.models.fields.reverse_related import ForeignObjectRel, ManyToManyRel, OneToOneRel
 
+from django_autotyping._compat import postgres_fields
 from django_autotyping.app_settings import StubsGenerationSettings
 from django_autotyping.typing import ModelType
 
@@ -88,7 +90,7 @@ def _group_project_models(
     for model in django_context.models:
         module = inspect.getmodule(model)
         module_file = _module_file(module)
-        if module is not None and module_file is not None and _is_relative_to(module_file, source_root):
+        if module is not None and module_file is not None and module_file.is_relative_to(source_root):
             grouped[module].append(model)
 
     for module in list(grouped):
@@ -107,14 +109,6 @@ def _module_file(module: ModuleType | None) -> Path | None:
     if path.suffix != ".py":
         return None
     return path
-
-
-def _is_relative_to(path: Path, root: Path) -> bool:
-    try:
-        path.relative_to(root)
-    except ValueError:
-        return False
-    return True
 
 
 def _model_classes_in_module(module: ModuleType) -> list[ModelType]:
@@ -277,8 +271,6 @@ def _augment_user_model_alias(
     target_path = local_stubs_dir / "django-stubs" / "contrib" / "auth" / "models.pyi"
     if not target_path.exists():
         return
-
-    from django.contrib.auth import get_user_model
 
     user_model = get_user_model()
     name = user_model.__name__
@@ -625,9 +617,9 @@ def _collect_model_dynamic_attr_types(django_context: DjangoStubbingContext) -> 
                 )
             )
 
-        for name, value in vars(model).items():
-            if _is_generic_foreign_key(value):
-                attr_types[name].add("Any")
+        for field in model._meta.private_fields:
+            if _is_generic_foreign_key(field):
+                attr_types[field.name].add("Any")
 
         for relation in model._meta.related_objects:
             accessor_name = relation.get_accessor_name()
@@ -844,10 +836,7 @@ def _render_model_manager_attr_overloads(model_manager_attr_types: dict[str, set
         lines.extend(
             [
                 "    @overload",
-                (
-                    f"    def __getattr__(cls: type[{model_name}], "
-                    f"name: Literal[{names}]) -> Manager[{model_name}]: ..."
-                ),
+                (f"    def __getattr__(cls: type[{model_name}], name: Literal[{names}]) -> Manager[{model_name}]: ..."),
             ]
         )
     lines.extend(
@@ -1056,7 +1045,7 @@ def _group_external_models(
     for model in django_context.models:
         module = inspect.getmodule(model)
         module_file = _module_file(module)
-        if module is None or module_file is None or _is_relative_to(module_file, source_root):
+        if module is None or module_file is None or module_file.is_relative_to(source_root):
             continue
         grouped[module].append(model)
 
@@ -1070,7 +1059,7 @@ def _has_project_relation(module_models: list[ModelType], source_root: Path) -> 
             if isinstance(related_model, str):
                 continue
             module_file = _module_file(inspect.getmodule(related_model))
-            if module_file is not None and _is_relative_to(module_file, source_root):
+            if module_file is not None and module_file.is_relative_to(source_root):
                 return True
     return False
 
@@ -1240,9 +1229,9 @@ def _render_model_class(
             f"{_many_to_many_manager_type(field.remote_field.through, field.remote_field.model, module, planner)}"
         )
 
-    for name, value in vars(model).items():
-        if _is_generic_foreign_key(value):
-            members.append(f"{name}: Any")
+    for field in model._meta.private_fields:
+        if _is_generic_foreign_key(field):
+            members.append(f"{field.name}: Any")
 
     for relation in model._meta.related_objects:
         accessor_name = relation.get_accessor_name()
@@ -1368,6 +1357,12 @@ def _render_field_attributes(field: models.Field, module: ModuleType, planner: I
 
 
 def _field_value_type(field: models.Field, module: ModuleType, planner: ImportPlanner) -> str:
+    if postgres_fields is not None and isinstance(field, postgres_fields.ArrayField):
+        element_type = _field_value_type(field.base_field, module, planner)
+        if field.base_field.null:
+            element_type += " | None"
+        return f"list[{element_type}]"
+
     if isinstance(field, (models.ForeignKey, models.OneToOneField)) and not isinstance(field.remote_field.model, str):
         return planner.annotation_for_model(field.remote_field.model._meta.concrete_model, module)
 
@@ -1430,7 +1425,9 @@ def _many_to_many_manager_type(
     return f"ManyToManyRelatedManager[{related_annotation}, {through_annotation}]"
 
 
-def _is_generic_foreign_key(value: object) -> bool:
+def _is_generic_foreign_key(field: object) -> bool:
+    # Match the field registered in ``_meta.private_fields`` rather than the class
+    # attribute: since Django 6.1 the model attribute is a ``GenericForeignKeyDescriptor``.
     try:
         fields_module = importlib.import_module("django.contrib.contenttypes.fields")
     except (ImportError, ImproperlyConfigured):
@@ -1438,7 +1435,7 @@ def _is_generic_foreign_key(value: object) -> bool:
     generic_foreign_key = fields_module.GenericForeignKey
     if not isinstance(generic_foreign_key, type):
         return False
-    return isinstance(value, generic_foreign_key)
+    return isinstance(field, generic_foreign_key)
 
 
 def _render_plain_class(node: ast.ClassDef, module: ModuleType) -> list[str]:

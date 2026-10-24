@@ -4,8 +4,6 @@ import inspect
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from django_autotyping._compat import is_relative_to
-
 from .models import ModelInfo
 
 if TYPE_CHECKING:
@@ -28,5 +26,5 @@ class DjangoCodemodContext:
         return [
             ModelInfo.from_model(model)
             for model in self.apps.get_models()
-            if is_relative_to(Path(inspect.getabsfile(model)), self.project_dir.resolve())
+            if Path(inspect.getabsfile(model)).is_relative_to(self.project_dir.resolve())
         ]

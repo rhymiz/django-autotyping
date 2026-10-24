@@ -3,10 +3,10 @@ from __future__ import annotations
 from copy import deepcopy
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Self
 
 from django.conf import LazySettings
 
-from ._compat import Self
 from .typing import AutotypingSettingsDict, RulesT
 
 

@@ -59,9 +59,7 @@ AUTOTYPING = {
     ```python
     from django_autotyping.typing import AutotypingSettingsDict
 
-    AUTOTYPING: AutotypingSettingsDict = {
-        ...
-    }
+    AUTOTYPING: AutotypingSettingsDict = {...}
     ```
 
 `django-autotyping` provides several linting rules, identified with the pattern `DJA00X` or `DJAS00X`. Rules can be disabled

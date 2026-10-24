@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from typing import Container, Literal
-
-from django_autotyping._compat import TypeAlias
+from collections.abc import Container
+from typing import Literal, TypeAlias
 
 from .auth_functions_codemod import AuthFunctionsCodemod
 from .base import StubVisitorBasedCodemod
