@@ -10,7 +10,4 @@ assert_type(settings.CUSTOM_SETTING, str)
 # Special cased:
 assert_type(settings.AUTH_USER_MODEL, Literal["accounts.User"])
 
-# Added in Django 4.0, we currently test against 4.2:
 assert_type(settings.SECURE_CROSS_ORIGIN_OPENER_POLICY, str | None)
-
-settings.STATICFILES_STORAGE
