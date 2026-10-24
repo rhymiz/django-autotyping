@@ -12,6 +12,12 @@
 - Drop settings removed before Django 5.2 (`CSRF_COOKIE_MASKED`, `DEFAULT_FILE_STORAGE`,
   `STATICFILES_STORAGE`, `USE_DEPRECATED_PYTZ`, `USE_L10N`) from the settings stubs, and stop
   emitting `FORMS_URLFIELD_ASSUME_HTTPS` on Django 6.0+, where it was removed.
+- Add settings introduced in Django 5.2–6.1: `MAILERS`, `SECURE_CSP`, `SECURE_CSP_REPORT_ONLY`,
+  `SIGNED_COOKIE_LEGACY_SALT_FALLBACK` (security backport in 5.2.15/6.0.6), `TASKS`,
+  `URLIZE_ASSUME_HTTPS` and `USE_BLANK_CHOICE_DASH`. Mark the `EMAIL_*` settings superseded by
+  `MAILERS` as deprecated on Django 6.1.
+- Fix settings stubs generation crashing for deprecated settings with non-identifier types,
+  type `EMAIL_PORT` as `int`, and stop emitting `MESSAGE_LEVEL`/`MESSAGE_TAGS` unless configured.
 
 ## 0.5.1 (2024-05-29)
 

@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 
 import pytest
+from django import VERSION as DJANGO_VERSION
 from mypy.api import run as run_mypy
 from pyright import main as run_pyright
 
@@ -19,6 +20,8 @@ from django_autotyping.stubbing import (
     run_codemods,
 )
 from django_autotyping.stubbing.codemods import gather_codemods
+from django_autotyping.stubbing.codemods._global_settings_types import GLOBAL_SETTINGS
+from django_autotyping.stubbing.codemods.settings_codemod import _is_available
 
 TESTFILES = Path(__file__).parent / "testfiles"
 STUBSTESTPROJ = Path(__file__).parents[1].joinpath("stubstestproj").absolute()
@@ -47,6 +50,26 @@ testfiles_params = pytest.mark.parametrize(
 def local_stubs(tmp_path) -> Path:
     create_local_django_stubs(tmp_path)
     return tmp_path
+
+
+def test_settings_stubs_cover_running_django(local_stubs, stubstestproj_context):
+    stubs_settings = StubsGenerationSettings(LOCAL_STUBS_DIR=local_stubs)
+
+    codemods = gather_codemods(include=["DJAS016"])
+    run_codemods(codemods, stubstestproj_context, stubs_settings)
+
+    generated = (local_stubs / "django-stubs" / "conf" / "__init__.pyi").read_text()
+    version = DJANGO_VERSION[:3]
+
+    configured = set(dir(stubstestproj_context.settings._wrapped))
+
+    for name, conf in GLOBAL_SETTINGS.items():
+        if not _is_available(conf, version) or (conf.get("no_default") and name not in configured):
+            assert f"{name}: " not in generated and f"def {name}(" not in generated, name
+        elif conf.get("deprecated_since", (float("inf"),)) <= version:
+            assert f"def {name}(self) -> " in generated, name
+        else:
+            assert f"    {name}: " in generated, name
 
 
 def test_model_init_kwargs_are_generated_once(local_stubs, stubstestproj_context):
