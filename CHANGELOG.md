@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.0 (2026-10-24)
 
 - Preserve PostgreSQL ArrayField element types, nesting and nullability in project
   model attributes and model/manager creation arguments. PostgreSQL drivers remain
